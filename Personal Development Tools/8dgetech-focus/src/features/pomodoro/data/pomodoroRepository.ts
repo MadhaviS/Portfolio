@@ -1,5 +1,9 @@
-import { Platform } from 'react-native';
 import { authStub } from '../../../core/auth/authStub';
+import {
+  storageGet,
+  storageRemove,
+  storageSet,
+} from '../../../core/storage/webStorage';
 import type {
   PomodoroSession,
   PomodoroSettings,
@@ -31,41 +35,6 @@ let activeTaskId: string | null = null;
 let boundUserId: string | null = null;
 let hydrated = false;
 const listeners = new Set<WorkspaceListener>();
-
-function canUseWebStorage(): boolean {
-  return (
-    Platform.OS === 'web' &&
-    typeof globalThis !== 'undefined' &&
-    typeof globalThis.localStorage !== 'undefined'
-  );
-}
-
-function storageGet(key: string): string | null {
-  if (!canUseWebStorage()) return null;
-  try {
-    return globalThis.localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-function storageSet(key: string, value: string): void {
-  if (!canUseWebStorage()) return;
-  try {
-    globalThis.localStorage.setItem(key, value);
-  } catch {
-    // ignore
-  }
-}
-
-function storageRemove(key: string): void {
-  if (!canUseWebStorage()) return;
-  try {
-    globalThis.localStorage.removeItem(key);
-  } catch {
-    // ignore
-  }
-}
 
 function readJson<T>(key: string, fallback: T): T {
   const raw = storageGet(key);
@@ -144,6 +113,93 @@ function loadWorkspace(userId: string): void {
   activeTaskId = readJson<string | null>(keys.activeTask, null);
 }
 
+function workspaceHasContent(userId: string): boolean {
+  migrateUserKeys(userId);
+  const keys = keysFor(userId);
+  const storedSessions = readJson<PomodoroSession[]>(keys.sessions, []);
+  const storedTasks = readJson<PomodoroTask[]>(keys.tasks, []);
+  return storedSessions.length > 0 || storedTasks.length > 0;
+}
+
+function copyWorkspaceRaw(fromId: string, toId: string): void {
+  migrateUserKeys(fromId);
+  migrateUserKeys(toId);
+  const from = keysFor(fromId);
+  const to = keysFor(toId);
+  const fields = ['settings', 'sessions', 'tasks', 'activeTask'] as const;
+  for (const field of fields) {
+    const raw = storageGet(from[field]);
+    if (raw != null) storageSet(to[field], raw);
+  }
+}
+
+/** Rewrite ownership ids after copying guest → account. */
+function reassignStoredOwnership(userId: string): void {
+  const keys = keysFor(userId);
+  const nextSessions = readJson<PomodoroSession[]>(keys.sessions, []).map((s) => ({
+    ...s,
+    userId,
+  }));
+  const nextTasks = readJson<PomodoroTask[]>(keys.tasks, []).map((t) => ({
+    ...t,
+    userId,
+  }));
+  writeJson(keys.sessions, nextSessions);
+  writeJson(keys.tasks, nextTasks);
+}
+
+function mergeById<T extends { id: string }>(primary: T[], extra: T[]): T[] {
+  const map = new Map<string, T>();
+  for (const item of primary) map.set(item.id, item);
+  for (const item of extra) {
+    if (!map.has(item.id)) map.set(item.id, item);
+  }
+  return Array.from(map.values());
+}
+
+/**
+ * Bring guest tasks/sessions into the account so pre-login work is kept.
+ * - Empty account → full copy from guest
+ * - Existing account → merge guest items that aren't already present
+ */
+function adoptGuestWorkspaceIfNeeded(userId: string): void {
+  if (!userId || userId === 'local-guest') return;
+  migrateLegacyIntoGuest();
+  if (!workspaceHasContent('local-guest')) return;
+
+  const guestKeys = keysFor('local-guest');
+  const userKeys = keysFor(userId);
+  migrateUserKeys(userId);
+
+  const guestSessions = readJson<PomodoroSession[]>(guestKeys.sessions, []).map(
+    (s) => ({ ...s, userId }),
+  );
+  const guestTasks = readJson<PomodoroTask[]>(guestKeys.tasks, []).map((t) => ({
+    ...t,
+    userId,
+  }));
+  const guestSettings = readJson<PomodoroSettings | null>(guestKeys.settings, null);
+  const guestActive = readJson<string | null>(guestKeys.activeTask, null);
+
+  if (!workspaceHasContent(userId)) {
+    copyWorkspaceRaw('local-guest', userId);
+    reassignStoredOwnership(userId);
+    return;
+  }
+
+  const userSessions = readJson<PomodoroSession[]>(userKeys.sessions, []);
+  const userTasks = readJson<PomodoroTask[]>(userKeys.tasks, []);
+  writeJson(userKeys.sessions, mergeById(userSessions, guestSessions));
+  writeJson(userKeys.tasks, mergeById(userTasks, guestTasks));
+
+  if (storageGet(userKeys.settings) == null && guestSettings) {
+    writeJson(userKeys.settings, { ...DEFAULT_SETTINGS, ...guestSettings });
+  }
+  if (storageGet(userKeys.activeTask) == null && guestActive) {
+    writeJson(userKeys.activeTask, guestActive);
+  }
+}
+
 /** One-time: move pre-account global keys into the guest bucket. */
 function migrateLegacyIntoGuest(): void {
   if (storageGet(OLD_LEGACY_MIGRATED_KEY) === '1') {
@@ -191,6 +247,8 @@ function emit() {
 function bindSilent(userId: string): void {
   if (userId === 'local-guest') {
     migrateLegacyIntoGuest();
+  } else {
+    adoptGuestWorkspaceIfNeeded(userId);
   }
   boundUserId = userId;
   hydrated = true;
@@ -220,6 +278,11 @@ export const pomodoroRepository = {
       hydrated && boundUserId === userId && !options?.reset;
     if (unchanged) return;
 
+    // Flush the outgoing workspace so nothing is lost mid-switch.
+    if (hydrated && boundUserId && boundUserId !== userId) {
+      persist();
+    }
+
     if (userId === 'local-guest') {
       migrateLegacyIntoGuest();
     }
@@ -231,7 +294,16 @@ export const pomodoroRepository = {
       emptyWorkspace();
       persist();
     } else {
+      if (userId !== 'local-guest') {
+        adoptGuestWorkspaceIfNeeded(userId);
+      }
       loadWorkspace(userId);
+      // Normalize ownership tags to the bound account.
+      if (userId !== 'local-guest') {
+        sessions = sessions.map((s) => ({ ...s, userId }));
+        tasks = tasks.map((t) => ({ ...t, userId }));
+        persist();
+      }
     }
 
     emit();
@@ -263,9 +335,8 @@ export const pomodoroRepository = {
 
   listSessions(): PomodoroSession[] {
     ensureBound();
-    const userId = authStub.getUserId();
+    // Workspace is already partitioned by user storage keys.
     return sessions
-      .filter((s) => !s.userId || s.userId === userId)
       .slice()
       .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
   },
@@ -293,9 +364,8 @@ export const pomodoroRepository = {
 
   listTasks(): PomodoroTask[] {
     ensureBound();
-    const userId = authStub.getUserId();
+    // Workspace is already partitioned by user storage keys.
     return tasks
-      .filter((t) => !t.userId || t.userId === userId)
       .slice()
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   },

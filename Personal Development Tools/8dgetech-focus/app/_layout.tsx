@@ -48,11 +48,11 @@ function RootNavigator() {
       <AuthBootstrap>
         <Stack
           screenOptions={{
-            headerStyle: { backgroundColor: theme.colors.background },
+            headerStyle: { backgroundColor: 'transparent' },
             headerTintColor: theme.colors.onSurface,
             headerTitleStyle: { color: theme.colors.onSurface },
             headerShadowVisible: false,
-            contentStyle: { backgroundColor: theme.colors.background },
+            contentStyle: { backgroundColor: 'transparent' },
           }}
         >
           <Stack.Screen
@@ -60,6 +60,7 @@ function RootNavigator() {
             options={{
               title: 'Home',
               headerShown: false,
+              contentStyle: { backgroundColor: 'transparent' },
             }}
           />
           <Stack.Screen
@@ -67,7 +68,7 @@ function RootNavigator() {
             options={{
               title: 'Home',
               headerShown: false,
-              contentStyle: { backgroundColor: theme.colors.background },
+              contentStyle: { backgroundColor: 'transparent' },
             }}
           />
           <Stack.Screen
@@ -75,8 +76,9 @@ function RootNavigator() {
             options={{
               title: 'Sign in',
               headerShown: false,
-              presentation: 'modal',
-              contentStyle: { backgroundColor: theme.colors.background },
+              presentation: 'transparentModal',
+              animation: 'fade',
+              contentStyle: { backgroundColor: 'transparent' },
             }}
           />
           <Stack.Screen
@@ -84,7 +86,7 @@ function RootNavigator() {
             options={{
               title: 'Pomodoro',
               headerShown: false,
-              contentStyle: { backgroundColor: '#BA4949' },
+              contentStyle: { backgroundColor: 'transparent' },
             }}
           />
           <Stack.Screen

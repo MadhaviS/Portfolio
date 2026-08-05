@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
+  ImageBackground,
   Modal,
   Platform,
   Pressable,
@@ -26,12 +27,13 @@ import { HowItWorksTour } from './HowItWorksTour';
 import { useHowItWorksTour } from './useHowItWorksTour';
 import { ReportModal } from './ReportModal';
 import { CalendarModal } from './CalendarModal';
-import { SoftDoodles } from '../../../core/theme/SoftDoodles';
 import { useTheme } from '../../../core/theme/ThemeProvider';
-import { useAuth } from '../../../core/auth/AuthProvider';
-import { pomodoroRepository } from '../data/pomodoroRepository';
+import { AuthAccountButton } from '../../../core/auth/AuthAccountButton';
+import { IconGear, IconMoon, IconSun } from '../../../core/theme/LineIcons';
 
 const MODES: PomodoroPhase[] = ['focus', 'shortBreak', 'longBreak'];
+const DOODLE_BG_LIGHT = require('../../../../assets/landing-doodles-bg-light.png');
+const DOODLE_BG_DARK = require('../../../../assets/landing-doodles-bg-dark.png');
 
 export function PomodoroScreen() {
   const {
@@ -58,13 +60,18 @@ export function PomodoroScreen() {
   } = usePomodoroTimer();
 
   const router = useRouter();
-  const { isGuest, user, signOut, signInAsGuest } = useAuth();
+  const { theme: appTheme, resolved, toggleLightDark } = useTheme();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [draftTitle, setDraftTitle] = useState('');
   const { open: tourOpen, complete: completeTour } = useHowItWorksTour();
   const theme = PHASE_THEME[phase];
+  const isLight = resolved === 'light';
+  const c = appTheme.colors;
+  const chromeInk = isLight ? '#3A322C' : c.onSurface;
+  const chromeMuted = isLight ? 'rgba(58,50,44,0.55)' : c.onSurfaceMuted;
+  const chromeBtnBg = isLight ? 'rgba(42,36,32,0.06)' : 'rgba(255,248,242,0.08)';
   const isPartial = remaining > 0 && remaining < durationForPhaseSeconds(settings, phase);
 
   useEffect(() => {
@@ -77,7 +84,12 @@ export function PomodoroScreen() {
   }, [remaining, phase]);
 
   return (
-    <View style={[styles.root, { backgroundColor: theme.bg }]}>
+    <ImageBackground
+      source={isLight ? DOODLE_BG_LIGHT : DOODLE_BG_DARK}
+      style={[styles.root, { backgroundColor: c.background }]}
+      imageStyle={styles.bgImage}
+      resizeMode="cover"
+    >
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
@@ -89,51 +101,58 @@ export function PomodoroScreen() {
             hitSlop={8}
             accessibilityLabel="Back to home"
           >
-            <Text style={styles.brand}>Pomodoro</Text>
+            <Text style={[styles.brand, { color: theme.bg }]}>Pomodoro</Text>
           </Pressable>
           <View style={styles.topActions}>
             <Pressable
-              onPress={() => setReportOpen(true)}
-              style={({ pressed }) => [
-                styles.navBtn,
-                { opacity: pressed ? 0.75 : 1 },
-              ]}
-            >
-              <Text style={styles.navBtnLabel}>Report</Text>
-            </Pressable>
-            <Pressable
               onPress={() => setSettingsOpen(true)}
+              accessibilityLabel="Settings"
               style={({ pressed }) => [
-                styles.navBtn,
-                { opacity: pressed ? 0.75 : 1 },
+                styles.iconAction,
+                {
+                  backgroundColor: chromeBtnBg,
+                  borderColor: isLight ? 'rgba(42,36,32,0.12)' : c.border,
+                  opacity: pressed ? 0.7 : 1,
+                },
               ]}
             >
-              <Text style={styles.navBtnLabel}>Setting</Text>
+              <IconGear color={chromeInk} size={17} />
             </Pressable>
-            <Pressable
-              onPress={async () => {
-                if (isGuest) {
-                  router.push('/sign-in');
-                  return;
-                }
-                await signOut();
-                await signInAsGuest();
-                pomodoroRepository.switchUser('local-guest', { reset: true });
-              }}
+            <AuthAccountButton
+              color={chromeInk}
+              iconSize={18}
+              onOpenReport={() => setReportOpen(true)}
               style={({ pressed }) => [
-                styles.navBtn,
-                { opacity: pressed ? 0.75 : 1 },
+                styles.iconAction,
+                {
+                  backgroundColor: chromeBtnBg,
+                  borderColor: isLight ? 'rgba(42,36,32,0.12)' : c.border,
+                  opacity: pressed ? 0.7 : 1,
+                },
+              ]}
+            />
+            <Pressable
+              onPress={toggleLightDark}
+              accessibilityLabel="Toggle color theme"
+              style={({ pressed }) => [
+                styles.iconAction,
+                {
+                  backgroundColor: chromeBtnBg,
+                  borderColor: isLight ? 'rgba(42,36,32,0.12)' : c.border,
+                  opacity: pressed ? 0.7 : 1,
+                },
               ]}
             >
-              <Text style={styles.navBtnLabel}>
-                {isGuest ? 'Login' : 'Logout'}
-              </Text>
+              {isLight ? (
+                <IconSun color={chromeInk} size={16} />
+              ) : (
+                <IconMoon color={chromeInk} size={16} />
+              )}
             </Pressable>
           </View>
         </View>
 
-        <View style={[styles.timerCard, { backgroundColor: theme.panel }]}>
-          <SoftDoodles density={1} accent="rgba(255,255,255,0.35)" />
+        <View style={[styles.timerCard, { backgroundColor: theme.bg }]}>
           <View style={styles.modeTabs}>
             {MODES.map((mode) => {
               const active = mode === phase;
@@ -141,10 +160,7 @@ export function PomodoroScreen() {
                 <Pressable
                   key={mode}
                   onPress={() => selectPhase(mode)}
-                  style={[
-                    styles.modeTab,
-                    active && styles.modeTabActive,
-                  ]}
+                  style={[styles.modeTab, active && styles.modeTabActive]}
                 >
                   <Text style={styles.modeTabText}>
                     {PHASE_THEME[mode].label}
@@ -175,7 +191,7 @@ export function PomodoroScreen() {
             onPress={running ? pause : start}
             style={({ pressed }) => [
               styles.startBtn,
-              { opacity: pressed ? 0.9 : 1 },
+              { opacity: pressed ? 0.92 : 1 },
             ]}
           >
             <Text style={[styles.startLabel, { color: theme.bg }]}>
@@ -188,58 +204,55 @@ export function PomodoroScreen() {
           </Pressable>
         </View>
 
-        <View style={styles.tasksHeader}>
-          <Text style={styles.tasksTitle}>Tasks</Text>
-          <Text style={styles.tasksMeta}>
-            {stats.focusCompletedToday} /{' '}
-            {Math.max(
-              stats.focusCompletedToday,
-              tasks.reduce((sum, t) => sum + t.estimatePomodoros, 0),
-            )}
-          </Text>
-        </View>
+        <View style={[styles.tasksCard, { backgroundColor: theme.bg }]}>
+          <View style={styles.tasksHeader}>
+            <Text style={styles.tasksTitle}>Tasks</Text>
+            <Text style={styles.tasksMeta}>Estimate (Pomodoros)</Text>
+          </View>
 
-        <View style={styles.taskList}>
-          {tasks.map((task) => (
-            <TaskRow
-              key={task.id}
-              task={task}
-              active={task.id === activeTaskId}
-              onSelect={() => selectTask(task.id)}
-              onToggle={() => toggleTaskDone(task.id)}
-              onInc={() => changeEstimate(task.id, 1)}
-              onDec={() => changeEstimate(task.id, -1)}
-              onDelete={() => deleteTask(task.id)}
+          <View style={styles.taskList}>
+            {tasks.map((task) => (
+              <TaskRow
+                key={task.id}
+                task={task}
+                active={task.id === activeTaskId}
+                accent={theme.bg}
+                onSelect={() => selectTask(task.id)}
+                onToggle={() => toggleTaskDone(task.id)}
+                onInc={() => changeEstimate(task.id, 1)}
+                onDec={() => changeEstimate(task.id, -1)}
+                onDelete={() => deleteTask(task.id)}
+              />
+            ))}
+          </View>
+
+          <View style={styles.addRow}>
+            <TextInput
+              value={draftTitle}
+              onChangeText={setDraftTitle}
+              placeholder="Add a new task..."
+              placeholderTextColor="rgba(255,255,255,0.55)"
+              style={styles.addInput}
+              onSubmitEditing={() => {
+                if (!draftTitle.trim()) return;
+                addTask(draftTitle.trim(), 1);
+                setDraftTitle('');
+              }}
             />
-          ))}
+            <Pressable
+              onPress={() => {
+                if (!draftTitle.trim()) return;
+                addTask(draftTitle.trim(), 1);
+                setDraftTitle('');
+              }}
+              style={styles.addBtn}
+            >
+              <Text style={styles.addBtnText}>Add Task</Text>
+            </Pressable>
+          </View>
         </View>
 
-        <View style={styles.addRow}>
-          <TextInput
-            value={draftTitle}
-            onChangeText={setDraftTitle}
-            placeholder="Add a task..."
-            placeholderTextColor="rgba(255,255,255,0.55)"
-            style={styles.addInput}
-            onSubmitEditing={() => {
-              if (!draftTitle.trim()) return;
-              addTask(draftTitle.trim(), 1);
-              setDraftTitle('');
-            }}
-          />
-          <Pressable
-            onPress={() => {
-              if (!draftTitle.trim()) return;
-              addTask(draftTitle.trim(), 1);
-              setDraftTitle('');
-            }}
-            style={styles.addBtn}
-          >
-            <Text style={styles.addBtnText}>Add</Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.finishCard}>
+        <View style={[styles.finishCard, { backgroundColor: theme.bg }]}>
           <Text style={styles.finishLabel}>Est. finish</Text>
           <Text style={styles.finishValue}>{formatFinishClock(finishAt)}</Text>
           <Text style={styles.finishHint}>
@@ -248,26 +261,9 @@ export function PomodoroScreen() {
           </Text>
         </View>
 
-        <View style={styles.reportCard}>
-          <Text style={styles.reportTitle}>
-            {isGuest
-              ? 'Focus today'
-              : `Hi ${user?.displayName ?? 'there'} · focus today`}
-          </Text>
-          <View style={styles.reportRow}>
-            <ReportStat label="Today" value={`${stats.focusCompletedToday} pomos`} />
-            <ReportStat
-              label="Focus time"
-              value={formatMinutesShort(stats.focusMinutesToday)}
-            />
-            <ReportStat
-              label="All time"
-              value={formatMinutesShort(stats.focusMinutesAllTime)}
-            />
-          </View>
-        </View>
-
-        <Text style={styles.powered}>powered by 8dgeTech@2026</Text>
+        <Text style={[styles.powered, { color: chromeMuted }]}>
+          powered by 8dgeTech@2026
+        </Text>
       </ScrollView>
 
       <SettingsModal
@@ -294,13 +290,14 @@ export function PomodoroScreen() {
       />
 
       <HowItWorksTour open={tourOpen} onFinish={completeTour} />
-    </View>
+    </ImageBackground>
   );
 }
 
 function TaskRow({
   task,
   active,
+  accent,
   onSelect,
   onToggle,
   onInc,
@@ -309,6 +306,7 @@ function TaskRow({
 }: {
   task: PomodoroTask;
   active: boolean;
+  accent: string;
   onSelect: () => void;
   onToggle: () => void;
   onInc: () => void;
@@ -326,7 +324,9 @@ function TaskRow({
     >
       <Pressable onPress={onToggle} hitSlop={8} style={styles.checkHit}>
         <View style={[styles.check, task.done && styles.checkOn]}>
-          {task.done ? <Text style={styles.checkMark}>✓</Text> : null}
+          {task.done ? (
+            <Text style={[styles.checkMark, { color: accent }]}>✓</Text>
+          ) : null}
         </View>
       </Pressable>
 
@@ -354,15 +354,6 @@ function TaskRow({
         </Pressable>
       </View>
     </Pressable>
-  );
-}
-
-function ReportStat({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.reportStat}>
-      <Text style={styles.reportStatValue}>{value}</Text>
-      <Text style={styles.reportStatLabel}>{label}</Text>
-    </View>
   );
 }
 
@@ -578,52 +569,71 @@ function durationForPhaseSeconds(
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
+  root: { flex: 1, width: '100%' },
+  bgImage: {
+    width: '100%',
+    height: '100%',
+  },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingTop: 56,
+    paddingTop: 48,
     paddingBottom: 48,
-    maxWidth: 480,
+    maxWidth: 520,
     width: '100%',
     alignSelf: 'center',
+    zIndex: 1,
   },
   topBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 22,
     gap: 12,
   },
   topActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 4,
     flexWrap: 'wrap',
     justifyContent: 'flex-end',
   },
   brand: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 22,
+    fontWeight: '800',
+    letterSpacing: -0.3,
   },
-  settingsBtn: {
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
-  },
-  settingsLabel: { color: '#fff', fontSize: 13, fontWeight: '600' },
   navBtn: {
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 6,
+    borderRadius: 10,
   },
-  navBtnLabel: { color: '#fff', fontSize: 13, fontWeight: '600' },
+  navBtnLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  iconAction: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  themeBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   timerCard: {
-    borderRadius: 8,
-    paddingVertical: 28,
-    paddingHorizontal: 16,
+    borderRadius: 18,
+    paddingVertical: 32,
+    paddingHorizontal: 18,
     alignItems: 'center',
     gap: 16,
     overflow: 'hidden',
@@ -636,12 +646,12 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   modeTab: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 10,
   },
   modeTabActive: {
-    backgroundColor: 'rgba(0,0,0,0.18)',
+    backgroundColor: 'rgba(0,0,0,0.22)',
   },
   modeTabText: {
     color: '#fff',
@@ -650,25 +660,26 @@ const styles = StyleSheet.create({
   },
   timerText: {
     color: '#fff',
-    fontSize: 96,
+    fontSize: 92,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
     letterSpacing: -2,
-    lineHeight: 110,
+    lineHeight: 104,
   },
   progressTrack: {
-    width: '88%',
-    height: 3,
-    backgroundColor: 'rgba(0,0,0,0.15)',
-    borderRadius: 2,
+    width: '80%',
+    height: 4,
+    backgroundColor: 'rgba(0,0,0,0.18)',
+    borderRadius: 4,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: 'rgba(255,255,255,0.85)',
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderRadius: 4,
   },
   workingOn: {
-    color: 'rgba(255,255,255,0.9)',
+    color: 'rgba(255,255,255,0.92)',
     fontSize: 15,
     fontWeight: '500',
     textAlign: 'center',
@@ -676,109 +687,112 @@ const styles = StyleSheet.create({
   startBtn: {
     backgroundColor: '#fff',
     paddingVertical: 16,
-    paddingHorizontal: 56,
-    borderRadius: 8,
+    paddingHorizontal: 64,
+    borderRadius: 12,
     marginTop: 4,
-    // Pomofocus-like bottom shadow edge
     borderBottomWidth: 4,
     borderBottomColor: 'rgba(0,0,0,0.12)',
   },
   startLabel: {
     fontSize: 20,
-    fontWeight: '700',
-    letterSpacing: 1,
+    fontWeight: '800',
+    letterSpacing: 1.2,
   },
   skipLink: { padding: 6 },
   skipText: { color: 'rgba(255,255,255,0.75)', fontSize: 13 },
+  tasksCard: {
+    marginTop: 22,
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 14,
+    gap: 10,
+  },
   tasksHeader: {
-    marginTop: 28,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-end',
-    borderBottomWidth: 2,
-    borderBottomColor: 'rgba(255,255,255,0.55)',
     paddingBottom: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255,255,255,0.35)',
   },
   tasksTitle: { color: '#fff', fontSize: 18, fontWeight: '700' },
-  tasksMeta: { color: 'rgba(255,255,255,0.85)', fontSize: 13 },
-  taskList: { marginTop: 12, gap: 8 },
+  tasksMeta: { color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: '600' },
+  taskList: { gap: 8 },
   taskRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 12,
     gap: 10,
-    borderLeftWidth: 6,
-    borderLeftColor: 'transparent',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   taskRowActive: {
-    borderLeftColor: '#222',
+    borderColor: 'rgba(255,255,255,0.55)',
+    backgroundColor: 'rgba(255,255,255,0.2)',
   },
   taskRowDone: {
-    opacity: 0.72,
+    opacity: 0.65,
   },
   checkHit: { padding: 2 },
   check: {
     width: 22,
     height: 22,
-    borderRadius: 11,
+    borderRadius: 6,
     borderWidth: 2,
-    borderColor: '#DFDFDF',
+    borderColor: 'rgba(255,255,255,0.75)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   checkOn: {
-    backgroundColor: '#BA4949',
-    borderColor: '#BA4949',
+    backgroundColor: '#fff',
+    borderColor: '#fff',
   },
-  checkMark: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  checkMark: { fontSize: 12, fontWeight: '800' },
   taskBody: { flex: 1, gap: 2 },
-  taskTitle: { color: '#555', fontSize: 15, fontWeight: '600' },
+  taskTitle: { color: '#fff', fontSize: 15, fontWeight: '600' },
   taskTitleDone: {
     textDecorationLine: 'line-through',
-    color: '#999',
+    color: 'rgba(255,255,255,0.7)',
   },
-  taskPomos: { color: '#999', fontSize: 12 },
+  taskPomos: { color: 'rgba(255,255,255,0.7)', fontSize: 12 },
   estControls: { flexDirection: 'row', gap: 4 },
   estBtn: {
     width: 28,
     height: 28,
-    borderRadius: 6,
-    backgroundColor: '#EFEFEF',
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.18)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  estBtnText: { color: '#666', fontSize: 16, fontWeight: '600' },
+  estBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   addRow: {
-    marginTop: 12,
+    marginTop: 4,
     flexDirection: 'row',
     gap: 8,
   },
   addInput: {
     flex: 1,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    borderRadius: 8,
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    borderColor: 'rgba(255,255,255,0.45)',
+    backgroundColor: 'rgba(0,0,0,0.18)',
+    borderRadius: 12,
     color: '#fff',
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 15,
   },
   addBtn: {
-    backgroundColor: 'rgba(0,0,0,0.2)',
-    borderRadius: 8,
-    paddingHorizontal: 16,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    borderRadius: 12,
+    paddingHorizontal: 14,
     justifyContent: 'center',
   },
-  addBtnText: { color: '#fff', fontWeight: '700' },
+  addBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
   finishCard: {
-    marginTop: 20,
-    backgroundColor: 'rgba(255,255,255,0.14)',
-    borderRadius: 8,
+    marginTop: 16,
+    borderRadius: 16,
     padding: 16,
     alignItems: 'center',
     gap: 4,
@@ -790,23 +804,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: 'center',
   },
-  reportCard: {
-    marginTop: 14,
-    backgroundColor: 'rgba(255,255,255,0.14)',
-    borderRadius: 8,
-    padding: 16,
-    gap: 12,
-  },
-  reportTitle: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  reportRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  reportStat: { alignItems: 'center', flex: 1 },
-  reportStatValue: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  reportStatLabel: { color: 'rgba(255,255,255,0.75)', fontSize: 11, marginTop: 2 },
   powered: {
     marginTop: 28,
     marginBottom: 8,
     textAlign: 'center',
-    color: 'rgba(255,255,255,0.7)',
     fontSize: 12,
     fontWeight: '600',
     letterSpacing: 0.2,

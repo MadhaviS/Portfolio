@@ -45,19 +45,19 @@ export const PHASE_THEME: Record<
 > = {
   focus: {
     bg: '#BA4949',
-    panel: 'rgba(255,255,255,0.12)',
+    panel: 'rgba(255,255,255,0.16)',
     accent: '#C15C5C',
     label: 'Pomodoro',
   },
   shortBreak: {
     bg: '#38858A',
-    panel: 'rgba(255,255,255,0.12)',
+    panel: 'rgba(255,255,255,0.16)',
     accent: '#4A9B9F',
     label: 'Short Break',
   },
   longBreak: {
     bg: '#397097',
-    panel: 'rgba(255,255,255,0.12)',
+    panel: 'rgba(255,255,255,0.16)',
     accent: '#4A84A8',
     label: 'Long Break',
   },

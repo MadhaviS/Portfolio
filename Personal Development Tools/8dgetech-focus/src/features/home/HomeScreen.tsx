@@ -1,28 +1,61 @@
 import React, { useEffect } from 'react';
 import {
+  ImageBackground,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
   useWindowDimensions,
 } from 'react-native';
-import { Link, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import Animated, {
   Easing,
   useAnimatedStyle,
   useSharedValue,
-  withDelay,
   withRepeat,
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
 import { useTheme } from '../../core/theme/ThemeProvider';
-import { SoftDoodles } from '../../core/theme/SoftDoodles';
-import { useAuth } from '../../core/auth/AuthProvider';
-import { getEnabledApps } from '../../registry/appRegistry';
-import { pomodoroRepository } from '../pomodoro/data/pomodoroRepository';
+import { AuthAccountButton } from '../../core/auth/AuthAccountButton';
+import {
+  IconChart,
+  IconChecklist,
+  IconChevron,
+  IconMoon,
+  IconPerson,
+  IconSun,
+  IconTarget,
+  IconTomatoClock,
+} from '../../core/theme/LineIcons';
+
+const CORAL = '#FF6B5A';
+const DOODLE_BG_LIGHT = require('../../../assets/landing-doodles-bg-light.png');
+const DOODLE_BG_DARK = require('../../../assets/landing-doodles-bg-dark.png');
+
+const FEATURES = [
+  {
+    title: 'Stay focused',
+    body: 'Eliminate distractions and get more done.',
+    Icon: IconTarget,
+  },
+  {
+    title: 'Build better habits',
+    body: 'Small steps every day lead to big results.',
+    Icon: IconChecklist,
+  },
+  {
+    title: 'Track progress',
+    body: 'See your growth and stay motivated.',
+    Icon: IconChart,
+  },
+  {
+    title: 'For you',
+    body: 'Tools that fit your goals and your lifestyle.',
+    Icon: IconPerson,
+  },
+] as const;
 
 function useWebFonts() {
   useEffect(() => {
@@ -33,7 +66,7 @@ function useWebFonts() {
     link.id = id;
     link.rel = 'stylesheet';
     link.href =
-      'https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Outfit:wght@500;600;700&display=swap';
+      'https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Outfit:wght@400;500;600;700&display=swap';
     document.head.appendChild(link);
   }, []);
 }
@@ -41,293 +74,273 @@ function useWebFonts() {
 export function HomeScreen() {
   useWebFonts();
   const { theme, toggleLightDark, resolved } = useTheme();
-  const { user, isGuest, signOut, signInAsGuest } = useAuth();
   const router = useRouter();
-  const { width, height } = useWindowDimensions();
-  const apps = getEnabledApps();
+  const { height, width } = useWindowDimensions();
   const c = theme.colors;
-  const wide = width >= 880;
   const isLight = resolved === 'light';
-  const ink = c.onSurface;
-  const inkSoft = c.onSurfaceMuted;
+  const ink = isLight ? '#1A1C20' : c.onSurface;
+  const inkSoft = isLight ? '#6B6661' : c.onSurfaceMuted;
+  const coral = isLight ? CORAL : c.primary;
+  const narrow = width < 700;
+  const short = height < 720;
+  const tiny = height < 600 || width < 360;
+  const padX = width < 480 ? 18 : width < 900 ? 32 : 48;
+  const padY = short ? 12 : 20;
+
+  const titleSize = tiny ? 42 : short ? 52 : narrow ? 64 : 84;
+  const titleLine = titleSize * 1.05;
+  const subSize = tiny ? 13 : short ? 14 : 17;
+  const ctaPadV = tiny ? 14 : short ? 16 : 22;
+  const ctaTitleSize = tiny ? 20 : short ? 24 : 30;
+  const iconSize = tiny ? 28 : short ? 32 : 36;
+  const featureIconSize = tiny ? 20 : 24;
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return;
-    document.title = 'Focus';
+    document.title = 'Focus · 8dgeTech';
   }, []);
 
-  const breath = useSharedValue(1);
-  const floatY = useSharedValue(0);
-  const ring = useSharedValue(0.92);
-
+  const bob = useSharedValue(0);
   useEffect(() => {
-    breath.value = withRepeat(
+    bob.value = withRepeat(
       withSequence(
-        withTiming(1.035, { duration: 2400, easing: Easing.inOut(Easing.sin) }),
-        withTiming(1, { duration: 2400, easing: Easing.inOut(Easing.sin) }),
+        withTiming(1, { duration: 2600, easing: Easing.inOut(Easing.sin) }),
+        withTiming(0, { duration: 2600, easing: Easing.inOut(Easing.sin) }),
       ),
       -1,
       false,
     );
-    floatY.value = withRepeat(
-      withSequence(
-        withTiming(-10, { duration: 2800, easing: Easing.inOut(Easing.sin) }),
-        withTiming(0, { duration: 2800, easing: Easing.inOut(Easing.sin) }),
-      ),
-      -1,
-      false,
-    );
-    ring.value = withDelay(
-      400,
-      withRepeat(
-        withSequence(
-          withTiming(1.08, { duration: 2600 }),
-          withTiming(0.92, { duration: 2600 }),
-        ),
-        -1,
-        false,
-      ),
-    );
-  }, [breath, floatY, ring]);
+  }, [bob]);
 
-  const tomatoStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: breath.value }, { translateY: floatY.value }],
-  }));
-
-  const ringStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: ring.value }],
-    opacity: 0.22 + (ring.value - 0.92) * 2,
+  const cardMotion = useAnimatedStyle(() => ({
+    transform: [{ translateY: bob.value * -4 }],
   }));
 
   return (
-    <ScrollView
-      style={styles.scroll}
-      contentContainerStyle={[
-        styles.root,
-        { minHeight: Math.max(height, 640), paddingBottom: 56 },
-      ]}
-      showsVerticalScrollIndicator={false}
+    <ImageBackground
+      source={isLight ? DOODLE_BG_LIGHT : DOODLE_BG_DARK}
+      style={[styles.page, { backgroundColor: c.background, height }]}
+      imageStyle={styles.bgImage}
+      resizeMode="cover"
     >
-      {/* Company name — only once, top */}
-      <View style={styles.topBar}>
-        <Text style={[styles.company, { color: ink, fontFamily: fontDisplay }]}>
-          8dgeTech
-        </Text>
-        <View style={styles.topActions}>
-          <Pressable
-            onPress={async () => {
-              if (isGuest) {
-                router.push('/sign-in');
-                return;
-              }
-              await signOut();
-              await signInAsGuest();
-              pomodoroRepository.switchUser('local-guest', { reset: true });
-              router.replace('/pomodoro');
-            }}
-            style={({ pressed }) => [
-              styles.themeBtn,
-              {
-                borderColor: c.border,
-                backgroundColor: c.surface,
-                opacity: pressed ? 0.92 : 1,
-              },
-            ]}
-          >
-            <Text style={[styles.themeLabel, { color: ink, fontFamily: fontBody }]}>
-              {isGuest ? 'Sign in' : 'Sign out'}
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={toggleLightDark}
-            accessibilityLabel="Toggle color theme"
-            style={({ pressed }) => [
-              styles.themeBtn,
-              {
-                borderColor: c.border,
-                backgroundColor: c.surface,
-                opacity: pressed ? 0.92 : 1,
-              },
-            ]}
-          >
-            <Text style={[styles.themeLabel, { color: ink, fontFamily: fontBody }]}>
-              {isLight ? 'Dark' : 'Light'}
-            </Text>
-          </Pressable>
-        </View>
-      </View>
-
-      {user ? (
-        <Text style={[styles.signedIn, { color: inkSoft, fontFamily: fontBody }]}>
-          {isGuest ? 'Browsing as guest' : `Signed in as ${user.displayName}`}
-        </Text>
-      ) : null}
-
-      <View style={[styles.hero, wide && styles.heroWide]}>
-        <SoftDoodles density={1} />
-        <View style={[styles.copy, wide && styles.copyWide]}>
-          <View
+      <View
+        style={[
+          styles.root,
+          {
+            paddingHorizontal: padX,
+            paddingTop: padY,
+            paddingBottom: padY + 4,
+          },
+        ]}
+      >
+        <View style={styles.topBar}>
+          <Text
             style={[
-              styles.pill,
+              styles.company,
               {
-                backgroundColor: isLight ? '#F0D6C8' : c.surface,
-                borderColor: c.primary,
+                color: ink,
+                fontFamily: fontDisplay,
+                fontSize: tiny ? 20 : 26,
               },
             ]}
           >
-            <Text style={[styles.pillText, { color: ink, fontFamily: fontBody }]}>
-              Personal development toolkit
-            </Text>
-          </View>
-
-          <Text style={[styles.headline, { color: ink, fontFamily: fontDisplay }]}>
-            Make focus{'\n'}feel effortless
+            8dgeTech
           </Text>
-
-          <Text style={[styles.support, { color: inkSoft, fontFamily: fontBody }]}>
-            A calm Pomodoro with tasks, breaks, and a clear picture of how you
-            spent your time — built to grow into more small tools later.
-          </Text>
-
-          <View style={styles.ctaRow}>
-            <Link href="/pomodoro" asChild>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.ctaPrimary,
-                  {
-                    backgroundColor: isLight ? '#F0D6C8' : c.primary,
-                    borderColor: c.primary,
-                    transform: [{ translateY: pressed ? 1 : 0 }],
-                    opacity: pressed ? 0.92 : 1,
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.ctaPrimaryLabel,
-                    { color: c.primaryText, fontFamily: fontBody },
-                  ]}
-                >
-                  Open Pomodoro
-                </Text>
-              </Pressable>
-            </Link>
-          </View>
-
-          <View style={styles.metaRow}>
-            {['25 min focus', '5 min break', 'Task list'].map((item) => (
-              <View
-                key={item}
-                style={[styles.metaChip, { borderColor: c.border, backgroundColor: c.surface }]}
-              >
-                <Text style={[styles.metaChipText, { color: ink, fontFamily: fontBody }]}>
-                  {item}
-                </Text>
-              </View>
-            ))}
+          <View style={styles.topActions}>
+            <AuthAccountButton
+              color={ink}
+              iconSize={tiny ? 16 : 18}
+              showLabel
+              labelStyle={[
+                styles.ghostLabel,
+                { color: ink, fontFamily: fontBody, fontSize: tiny ? 12 : 14 },
+              ]}
+              style={({ pressed }) => [
+                styles.ghostBtn,
+                {
+                  borderColor: isLight ? '#D9D2C8' : c.border,
+                  backgroundColor: isLight ? '#FFFFFF' : c.surface,
+                  opacity: pressed ? 0.88 : 1,
+                  paddingVertical: tiny ? 8 : 11,
+                  paddingHorizontal: tiny ? 12 : 18,
+                },
+              ]}
+            />
+            <Pressable
+              onPress={toggleLightDark}
+              accessibilityLabel="Toggle color theme"
+              style={({ pressed }) => [
+                styles.iconBtn,
+                {
+                  borderColor: isLight ? '#D9D2C8' : c.border,
+                  backgroundColor: isLight ? '#FFFFFF' : c.surface,
+                  opacity: pressed ? 0.88 : 1,
+                  width: tiny ? 38 : 44,
+                  height: tiny ? 38 : 44,
+                },
+              ]}
+            >
+              {isLight ? (
+                <IconSun color={ink} size={17} />
+              ) : (
+                <IconMoon color={ink} size={17} />
+              )}
+            </Pressable>
           </View>
         </View>
 
-        <View style={[styles.visual, wide && styles.visualWide]}>
+        <View style={styles.hero}>
+          <Text
+            style={[
+              styles.heroTitle,
+              {
+                color: ink,
+                fontFamily: fontDisplay,
+                fontSize: titleSize,
+                lineHeight: titleLine,
+              },
+            ]}
+          >
+            Focus
+          </Text>
+          <Text
+            style={[
+              styles.heroSub,
+              {
+                color: inkSoft,
+                fontFamily: fontBody,
+                fontSize: subSize,
+                lineHeight: subSize * 1.45,
+              },
+            ]}
+          >
+            {narrow
+              ? 'A personal toolkit to focus, build habits, and grow.'
+              : 'A personal development toolkit to help you focus,\nbuild habits, and grow every day.'}
+          </Text>
+
           <Animated.View
             style={[
-              styles.orbit,
-              ringStyle,
-              { borderColor: c.primary },
+              styles.ctaWrap,
+              cardMotion,
+              { marginTop: short ? 10 : 16 },
+              Platform.OS === 'web'
+                ? ({
+                    boxShadow: `0 18px 40px ${coral}40`,
+                  } as object)
+                : null,
             ]}
-          />
-          <View
-            style={[
-              styles.orbitDashed,
-              { borderColor: isLight ? c.doodle : c.border },
-            ]}
-          />
-          <Link href="/pomodoro" asChild>
-            <Pressable accessibilityRole="link" accessibilityLabel="Open Pomodoro timer">
-              <Animated.View
+          >
+            <Pressable
+              onPress={() => router.push('/pomodoro')}
+              style={({ pressed }) => [
+                styles.ctaCard,
+                {
+                  backgroundColor: coral,
+                  transform: [{ scale: pressed ? 0.99 : 1 }],
+                  shadowColor: coral,
+                  paddingVertical: ctaPadV,
+                  paddingHorizontal: tiny ? 16 : 24,
+                },
+              ]}
+              accessibilityRole="link"
+              accessibilityLabel="Open Pomodoro"
+            >
+              <View
                 style={[
-                  styles.tomato,
-                  tomatoStyle,
-                  { backgroundColor: '#BA4949', shadowColor: '#BA4949' },
-                ]}
-              >
-                <Text style={[styles.tomatoMode, { fontFamily: fontBody }]}>
-                  Pomodoro
-                </Text>
-                <Text style={[styles.tomatoTime, { fontFamily: fontDisplay }]}>
-                  25:00
-                </Text>
-                <View style={styles.tomatoBtn}>
-                  <Text style={[styles.tomatoBtnLabel, { fontFamily: fontBody }]}>
-                    START
-                  </Text>
-                </View>
-              </Animated.View>
-            </Pressable>
-          </Link>
-        </View>
-      </View>
-
-      <View style={styles.toolsBlock}>
-        <Text style={[styles.toolsLabel, { color: ink, fontFamily: fontBody }]}>
-          Start here
-        </Text>
-        <View style={[styles.toolsRow, wide && styles.toolsRowWide]}>
-          {apps.map((app) => (
-            <Link key={app.id} href={app.route as '/pomodoro'} asChild>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.toolTile,
+                  styles.ctaIcon,
                   {
-                    backgroundColor: c.surface,
-                    borderColor: c.border,
-                    opacity: pressed ? 0.94 : 1,
+                    width: iconSize + 20,
+                    height: iconSize + 20,
+                    borderRadius: (iconSize + 20) / 2,
                   },
                 ]}
               >
-                <View style={styles.toolTop}>
-                  <View style={[styles.toolIcon, { backgroundColor: '#BA4949' }]}>
-                    <View style={styles.toolIconInner} />
-                  </View>
-                  <Text style={[styles.toolGo, { color: ink, fontFamily: fontBody }]}>
-                    Open →
+                <IconTomatoClock color="#FFFFFF" size={iconSize} />
+              </View>
+              <View style={styles.ctaCopy}>
+                <Text
+                  style={[
+                    styles.ctaTitle,
+                    { fontFamily: fontDisplay, fontSize: ctaTitleSize },
+                  ]}
+                >
+                  Pomodoro
+                </Text>
+                <Text
+                  style={[
+                    styles.ctaMeta,
+                    { fontFamily: fontBody, fontSize: tiny ? 12 : 14 },
+                  ]}
+                >
+                  Focus • breaks • tasks
+                </Text>
+              </View>
+              <IconChevron color="#FFFFFF" size={tiny ? 18 : 24} />
+            </Pressable>
+          </Animated.View>
+        </View>
+
+        <View
+          style={[
+            styles.featuresWrap,
+            {
+              borderTopColor: isLight ? '#E8E1D8' : c.border,
+              paddingTop: short ? 14 : 22,
+            },
+          ]}
+        >
+          <View style={[styles.features, narrow && styles.featuresGrid]}>
+            {FEATURES.map((f, i) => {
+              const FeatureIcon = f.Icon;
+              return (
+                <View
+                  key={f.title}
+                  style={[
+                    styles.featureCol,
+                    narrow && styles.featureColGrid,
+                    !narrow && i < FEATURES.length - 1 && styles.featureDivider,
+                    { borderColor: isLight ? '#E8E1D8' : c.border },
+                  ]}
+                >
+                  <FeatureIcon
+                    color={coral}
+                    size={featureIconSize}
+                    style={styles.featureIcon}
+                  />
+                  <Text
+                    style={[
+                      styles.featureTitle,
+                      {
+                        color: ink,
+                        fontFamily: fontBody,
+                        fontSize: tiny ? 13 : 15,
+                      },
+                    ]}
+                  >
+                    {f.title}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.featureBody,
+                      {
+                        color: inkSoft,
+                        fontFamily: fontBody,
+                        fontSize: tiny ? 11 : 13,
+                        lineHeight: tiny ? 15 : 18,
+                      },
+                    ]}
+                    numberOfLines={narrow ? 2 : 3}
+                  >
+                    {f.body}
                   </Text>
                 </View>
-                <Text style={[styles.toolTitle, { color: ink, fontFamily: fontDisplay }]}>
-                  {app.title}
-                </Text>
-                <Text style={[styles.toolSub, { color: inkSoft, fontFamily: fontBody }]}>
-                  Timed focus blocks, short breaks, a task list, and a simple
-                  report of how your sessions went.
-                </Text>
-              </Pressable>
-            </Link>
-          ))}
-
-          <View
-            style={[
-              styles.comingTile,
-              { borderColor: c.border, backgroundColor: c.surface },
-            ]}
-          >
-            <Text style={[styles.comingEyebrow, { color: inkSoft, fontFamily: fontBody }]}>
-              Next up
-            </Text>
-            <Text style={[styles.comingTitle, { color: ink, fontFamily: fontDisplay }]}>
-              More small tools
-            </Text>
-            <Text style={[styles.comingSub, { color: inkSoft, fontFamily: fontBody }]}>
-              Habits, journaling, and breath timers will join this same home —
-              one login, one calm place.
-            </Text>
+              );
+            })}
           </View>
         </View>
       </View>
-
-      <Text style={[styles.powered, { color: inkSoft, fontFamily: fontBody }]}>
-        powered by 8dgeTech@2026
-      </Text>
-    </ScrollView>
+    </ImageBackground>
   );
 }
 
@@ -342,271 +355,135 @@ const fontBody = Platform.select({
 });
 
 const styles = StyleSheet.create({
-  scroll: { flex: 1 },
+  page: {
+    flex: 1,
+    width: '100%',
+    overflow: 'hidden',
+  },
+  bgImage: {
+    width: '100%',
+    height: '100%',
+  },
   root: {
-    paddingHorizontal: 24,
-    paddingTop: 18,
-    maxWidth: 1120,
+    flex: 1,
+    maxWidth: 1040,
     width: '100%',
     alignSelf: 'center',
+    justifyContent: 'space-between',
   },
   topBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
-  },
-  topActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  company: {
-    fontSize: 22,
-    fontWeight: '700',
-    letterSpacing: -0.3,
-  },
-  signedIn: {
-    fontSize: 13,
-    fontWeight: '600',
-    marginBottom: 20,
-  },
-  themeBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 999,
-    borderWidth: 1,
-  },
-  themeLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  hero: {
-    gap: 40,
-    marginBottom: 48,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  heroWide: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 56,
-    minHeight: 420,
-  },
-  copy: {
-    gap: 18,
-    maxWidth: 540,
-    zIndex: 1,
-  },
-  copyWide: { flex: 1.05 },
-  pill: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 999,
-    borderWidth: 1,
-  },
-  pillText: {
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
-  headline: {
-    fontSize: 56,
-    fontWeight: '700',
-    letterSpacing: -1.8,
-    lineHeight: 60,
-  },
-  support: {
-    fontSize: 17,
-    lineHeight: 27,
-    fontWeight: '500',
-    maxWidth: 460,
-  },
-  ctaRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    marginTop: 4,
-  },
-  ctaPrimary: {
-    paddingHorizontal: 28,
-    paddingVertical: 16,
-    borderRadius: 14,
-    borderWidth: 2,
-  },
-  ctaPrimaryLabel: {
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 0.2,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 4,
-  },
-  metaChip: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-  },
-  metaChipText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  visual: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 300,
-  },
-  visualWide: {
-    flex: 0.95,
-    maxWidth: 380,
-  },
-  orbit: {
-    position: 'absolute',
-    width: 300,
-    height: 300,
-    borderRadius: 150,
-    borderWidth: 2,
-  },
-  orbitDashed: {
-    position: 'absolute',
-    width: 340,
-    height: 340,
-    borderRadius: 170,
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    opacity: 0.55,
-  },
-  tomato: {
-    width: 270,
-    borderRadius: 22,
-    paddingVertical: 30,
-    paddingHorizontal: 22,
-    alignItems: 'center',
-    gap: 12,
     zIndex: 2,
-    shadowOpacity: 0.35,
-    shadowRadius: 30,
-    shadowOffset: { width: 0, height: 18 },
-    elevation: 14,
+    flexShrink: 0,
   },
-  tomatoMode: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '600',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-  },
-  tomatoTime: {
-    color: '#FFFFFF',
-    fontSize: 68,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
-    letterSpacing: -1,
-  },
-  tomatoBtn: {
-    marginTop: 4,
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 38,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  tomatoBtnLabel: {
-    color: '#7A2E2E',
-    fontWeight: '800',
-    letterSpacing: 1,
-    fontSize: 14,
-  },
-  toolsBlock: { gap: 14 },
-  toolsLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-    letterSpacing: 1.4,
-    textTransform: 'uppercase',
-  },
-  toolsRow: { gap: 14 },
-  toolsRowWide: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-  },
-  toolTile: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: 20,
-    padding: 20,
-    gap: 10,
-    minWidth: 260,
-  },
-  toolTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  toolIcon: {
-    width: 46,
-    height: 46,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  toolIconInner: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    borderWidth: 2.5,
-    borderColor: '#FFFFFF',
-  },
-  toolTitle: {
-    fontSize: 26,
+  topActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  company: {
     fontWeight: '700',
     letterSpacing: -0.5,
   },
-  toolSub: {
-    fontSize: 14,
-    lineHeight: 22,
-    fontWeight: '500',
-  },
-  toolGo: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  comingTile: {
-    flex: 1,
+  ghostBtn: {
+    borderRadius: 14,
     borderWidth: 1,
-    borderStyle: 'dashed',
-    borderRadius: 20,
-    padding: 20,
-    justifyContent: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
-    minWidth: 220,
   },
-  comingEyebrow: {
-    fontSize: 11,
+  ghostLabel: { fontWeight: '600' },
+  iconBtn: {
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hero: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    zIndex: 2,
+    minHeight: 0,
+  },
+  heroTitle: {
     fontWeight: '700',
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-  },
-  comingTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    letterSpacing: -0.4,
-  },
-  comingSub: {
-    fontSize: 14,
-    lineHeight: 21,
-    fontWeight: '500',
-  },
-  powered: {
-    marginTop: 40,
+    letterSpacing: -2.8,
     textAlign: 'center',
-    fontSize: 12,
-    fontWeight: '600',
+  },
+  heroSub: {
+    fontWeight: '500',
+    textAlign: 'center',
+    maxWidth: 460,
+    paddingHorizontal: 8,
+  },
+  ctaWrap: {
+    width: '100%',
+    maxWidth: 540,
+    shadowOpacity: 0.28,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 14 },
+    elevation: 12,
+  },
+  ctaCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    borderRadius: 22,
+  },
+  ctaIcon: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ctaCopy: { flex: 1, gap: 2 },
+  ctaTitle: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    letterSpacing: -0.6,
+  },
+  ctaMeta: {
+    color: 'rgba(255,255,255,0.9)',
+    fontWeight: '500',
     letterSpacing: 0.2,
+  },
+  featuresWrap: {
+    zIndex: 2,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    flexShrink: 0,
+  },
+  features: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  featuresGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  featureCol: {
+    flex: 1,
+    gap: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 2,
+  },
+  featureColGrid: {
+    flexGrow: 0,
+    flexShrink: 0,
+    flexBasis: '47%',
+    width: '47%',
+    paddingHorizontal: 4,
+  },
+  featureDivider: {
+    borderRightWidth: StyleSheet.hairlineWidth,
+  },
+  featureIcon: {
+    marginBottom: 2,
+  },
+  featureTitle: {
+    fontWeight: '700',
+  },
+  featureBody: {
+    fontWeight: '500',
   },
 });

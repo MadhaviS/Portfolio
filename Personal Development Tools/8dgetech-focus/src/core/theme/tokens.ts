@@ -1,55 +1,50 @@
 export type ThemeMode = 'light' | 'dark' | 'system';
 
 /**
- * Contrast rules (strict):
- * - Light mode: light backgrounds + ONLY dark text (no white / pale gray copy)
- * - Dark mode: dark backgrounds + ONLY light text (no charcoal copy)
+ * README-mockup palette: warm cream, coral accent, soft charcoal ink.
+ * Contrast: light = dark text only; dark = light text only.
  */
 export const lightTheme = {
   mode: 'light' as const,
   colors: {
-    background: '#F7F4EF',
-    backgroundAlt: '#ECE6DC',
+    background: '#FDFBF7',
+    backgroundAlt: '#F3EDE5',
     surface: '#FFFFFF',
-    /** All light-mode copy uses these dark values */
-    text: '#0A0D12',
-    textMuted: '#1A2332',
-    onSurface: '#0A0D12',
-    onSurfaceMuted: '#1A2332',
-    primary: '#B84A2F',
-    /** Dark label on primary buttons in light mode — never white */
-    primaryText: '#0A0D12',
-    accent: '#1F5C52',
-    border: '#9A8F82',
-    doodle: '#6E6258',
-    success: '#1F5C52',
-    danger: '#8F2F2F',
-    timerRing: '#B84A2F',
-    timerTrack: '#D5CCC0',
+    text: '#1A1C20',
+    textMuted: '#6B6661',
+    onSurface: '#1A1C20',
+    onSurfaceMuted: '#6B6661',
+    primary: '#FF6B5A',
+    primaryText: '#FFFFFF',
+    accent: '#BA4949',
+    border: '#E8E1D8',
+    doodle: '#A89888',
+    success: '#3D7A6A',
+    danger: '#BA4949',
+    timerRing: '#FF6B5A',
+    timerTrack: '#EDE6DC',
   },
 };
 
 export const darkTheme = {
   mode: 'dark' as const,
   colors: {
-    background: '#0B0F14',
-    backgroundAlt: '#151B24',
-    surface: '#1A222E',
-    /** All dark-mode copy uses these light values */
-    text: '#F7F4EF',
-    textMuted: '#E2E8F0',
-    onSurface: '#F7F4EF',
-    onSurfaceMuted: '#E2E8F0',
-    primary: '#E07A5F',
-    /** Light label on primary in dark mode */
-    primaryText: '#F7F4EF',
-    accent: '#6BC4B2',
-    border: '#2F3B4C',
-    doodle: '#3A4A5E',
+    background: '#141018',
+    backgroundAlt: '#1E1822',
+    surface: '#26202C',
+    text: '#FFF8F2',
+    textMuted: '#D4C8BE',
+    onSurface: '#FFF8F2',
+    onSurfaceMuted: '#D4C8BE',
+    primary: '#FF8A7A',
+    primaryText: '#1A1A1D',
+    accent: '#E07A5F',
+    border: '#3A323E',
+    doodle: '#5A4E58',
     success: '#6BC4B2',
-    danger: '#E89292',
-    timerRing: '#E07A5F',
-    timerTrack: '#232C3A',
+    danger: '#FF8A7A',
+    timerRing: '#FF8A7A',
+    timerTrack: '#2E2734',
   },
 };
 
