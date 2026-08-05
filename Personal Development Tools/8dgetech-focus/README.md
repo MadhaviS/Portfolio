@@ -1,4 +1,4 @@
-# 8dge Focus
+# 8dgeTech — Focus toolkit
 
 Personal development toolkit by **8dgeTech** — one Expo app for **web, Android, and iOS**.
 
@@ -17,7 +17,7 @@ Pick a tool, toggle light/dark, sign in or continue as guest. Branding (**8dgeTe
 | Area | What it does |
 |------|----------------|
 | **8dgeTech** | Company mark (header only) |
-| **Focus** | Product hero |
+| **Focus** | Toolkit hero title |
 | **Pomodoro card** | Opens the timer |
 | **Sign in / theme** | Account + light/dark |
 
@@ -157,5 +157,5 @@ Then press **`w`** (web), **`a`** (Android), or **`i`** (iOS).
 ## Notes
 
 - Screenshots above are **UI previews** of the intended experience (layout & flows match the app).  
-- Company name appears sparingly: landing header, powered-by line, sign-in.  
+- Company name is **8dgeTech** only — landing header, powered-by line, sign-in.  
 - Built for portfolio / personal use; not affiliated with Pomofocus.
