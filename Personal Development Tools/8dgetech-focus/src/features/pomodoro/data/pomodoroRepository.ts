@@ -19,7 +19,8 @@ const LEGACY_SETTINGS_KEY = 'eightedge.pomodoro.settings';
 const LEGACY_SESSIONS_KEY = 'eightedge.pomodoro.sessions';
 const LEGACY_TASKS_KEY = 'eightedge.pomodoro.tasks';
 const LEGACY_ACTIVE_TASK_KEY = 'eightedge.pomodoro.activeTask';
-const LEGACY_MIGRATED_KEY = 'eightedge.pomodoro.legacyMigrated';
+const LEGACY_MIGRATED_KEY = '8dgetech.pomodoro.legacyMigrated';
+const OLD_LEGACY_MIGRATED_KEY = 'eightedge.pomodoro.legacyMigrated';
 
 type WorkspaceListener = () => void;
 
@@ -81,6 +82,16 @@ function writeJson(key: string, value: unknown): void {
 }
 
 function keysFor(userId: string) {
+  const base = `8dgetech.pomodoro.user.${userId}`;
+  return {
+    settings: `${base}.settings`,
+    sessions: `${base}.sessions`,
+    tasks: `${base}.tasks`,
+    activeTask: `${base}.activeTask`,
+  };
+}
+
+function oldKeysFor(userId: string) {
   const base = `eightedge.pomodoro.user.${userId}`;
   return {
     settings: `${base}.settings`,
@@ -88,6 +99,21 @@ function keysFor(userId: string) {
     tasks: `${base}.tasks`,
     activeTask: `${base}.activeTask`,
   };
+}
+
+function migrateUserKeys(userId: string): void {
+  const next = keysFor(userId);
+  const prev = oldKeysFor(userId);
+  const fields = ['settings', 'sessions', 'tasks', 'activeTask'] as const;
+  for (const field of fields) {
+    if (storageGet(next[field]) == null) {
+      const legacy = storageGet(prev[field]);
+      if (legacy != null) {
+        storageSet(next[field], legacy);
+        storageRemove(prev[field]);
+      }
+    }
+  }
 }
 
 function persist(): void {
@@ -107,6 +133,7 @@ function emptyWorkspace(): void {
 }
 
 function loadWorkspace(userId: string): void {
+  migrateUserKeys(userId);
   const keys = keysFor(userId);
   const storedSettings = readJson<PomodoroSettings | null>(keys.settings, null);
   settings = storedSettings
@@ -119,6 +146,11 @@ function loadWorkspace(userId: string): void {
 
 /** One-time: move pre-account global keys into the guest bucket. */
 function migrateLegacyIntoGuest(): void {
+  if (storageGet(OLD_LEGACY_MIGRATED_KEY) === '1') {
+    storageSet(LEGACY_MIGRATED_KEY, '1');
+    storageRemove(OLD_LEGACY_MIGRATED_KEY);
+  }
+  migrateUserKeys('local-guest');
   if (storageGet(LEGACY_MIGRATED_KEY) === '1') return;
   const guestKeys = keysFor('local-guest');
   const hasGuestData =

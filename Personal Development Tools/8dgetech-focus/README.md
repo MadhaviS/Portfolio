@@ -145,12 +145,74 @@ Add another tool: create `src/features/<name>/`, register it in `src/registry/ap
 ## Run locally
 
 ```bash
-cd "Personal Development Tools/eightedge-focus"
+cd "Personal Development Tools/8dgetech-focus"
 npm install          # or yarn
 npx expo start
 ```
 
 Then press **`w`** (web), **`a`** (Android), or **`i`** (iOS).
+
+---
+
+## Host on Hostinger (web)
+
+Live URL target: **https://8dgetech.com/en/portfolio**
+
+The app is built with `experiments.baseUrl: "/en/portfolio"` so assets and routes work under that path. **Do not** replace your existing site root — only add a subfolder.
+
+### Folder on Hostinger
+
+| Your URL | Upload files here |
+|----------|-------------------|
+| `https://8dgetech.com/en/portfolio` | `public_html/en/portfolio/` |
+
+Leave the rest of `public_html` (homepage, `/en`, etc.) untouched.
+
+```text
+public_html/                 ← existing 8dgetech.com site (keep)
+  en/
+    …                        ← existing English pages (keep)
+    portfolio/               ← CREATE this folder
+      index.html             ← from dist/
+      .htaccess
+      _expo/                 ← from dist/ (or similar asset folders)
+      …
+```
+
+### 1. Build on your machine
+
+```bash
+cd "Personal Development Tools/8dgetech-focus"
+npm install
+npm run build:web
+```
+
+Creates **`dist/`** with paths already prefixed for `/en/portfolio`.
+
+### 2. Upload only into `/en/portfolio`
+
+1. hPanel → **Files → File Manager**
+2. Open **`public_html` → `en`**
+3. Create folder **`portfolio`** if it doesn’t exist
+4. Open **`public_html/en/portfolio`**
+5. Upload **everything inside `dist/`** into that folder  
+   (so `public_html/en/portfolio/index.html` exists)
+6. Confirm **`.htaccess`** is in `portfolio/` (comes from `public/.htaccess`)
+
+### 3. Open the app
+
+Visit: [https://8dgetech.com/en/portfolio](https://8dgetech.com/en/portfolio)
+
+Timer: `https://8dgetech.com/en/portfolio/pomodoro`
+
+### Updating later
+
+```bash
+npm run build:web
+# replace contents of public_html/en/portfolio/ with the new dist/ files
+```
+
+> Local `npx expo start` still uses `/` (baseUrl applies to the production export). Always rebuild before uploading.
 
 ---
 

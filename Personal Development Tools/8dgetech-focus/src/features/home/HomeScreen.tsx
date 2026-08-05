@@ -27,7 +27,7 @@ import { pomodoroRepository } from '../pomodoro/data/pomodoroRepository';
 function useWebFonts() {
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return;
-    const id = 'eightedge-fonts';
+    const id = '8dgetech-fonts';
     if (document.getElementById(id)) return;
     const link = document.createElement('link');
     link.id = id;

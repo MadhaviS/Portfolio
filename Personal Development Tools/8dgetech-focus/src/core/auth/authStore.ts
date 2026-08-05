@@ -21,8 +21,10 @@ type StoredAccount = {
   createdAt: string;
 };
 
-const SESSION_KEY = 'eightedge.auth.session';
-const ACCOUNTS_KEY = 'eightedge.auth.accounts';
+const SESSION_KEY = '8dgetech.auth.session';
+const ACCOUNTS_KEY = '8dgetech.auth.accounts';
+const LEGACY_SESSION_KEY = 'eightedge.auth.session';
+const LEGACY_ACCOUNTS_KEY = 'eightedge.auth.accounts';
 
 const GUEST: AuthUser = {
   id: 'local-guest',
@@ -72,7 +74,44 @@ function writeSession(user: AuthUser | null) {
   storageSet(SESSION_KEY, JSON.stringify(user));
 }
 
+function migrateAuthKeys() {
+  if (!storageGet(ACCOUNTS_KEY)) {
+    const legacyAccounts = storageGet(LEGACY_ACCOUNTS_KEY);
+    if (legacyAccounts) {
+      storageSet(ACCOUNTS_KEY, legacyAccounts);
+      storageRemove(LEGACY_ACCOUNTS_KEY);
+    }
+  }
+  if (!storageGet(SESSION_KEY)) {
+    const legacySession = storageGet(LEGACY_SESSION_KEY);
+    if (legacySession) {
+      storageSet(SESSION_KEY, legacySession);
+      storageRemove(LEGACY_SESSION_KEY);
+    }
+  }
+}
+
 async function hashPassword(password: string): Promise<string> {
+  if (
+    typeof globalThis !== 'undefined' &&
+    globalThis.crypto?.subtle &&
+    typeof TextEncoder !== 'undefined'
+  ) {
+    const data = new TextEncoder().encode(`8dgetech:${password}`);
+    const digest = await globalThis.crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(digest))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+  // Fallback (non-web runtimes without SubtleCrypto)
+  let h = 0;
+  const s = `8dgetech:${password}`;
+  for (let i = 0; i < s.length; i++) h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
+  return `fallback_${h}`;
+}
+
+/** Accept passwords hashed with the old eightedge salt. */
+async function hashPasswordLegacy(password: string): Promise<string> {
   if (
     typeof globalThis !== 'undefined' &&
     globalThis.crypto?.subtle &&
@@ -84,7 +123,6 @@ async function hashPassword(password: string): Promise<string> {
       .map((b) => b.toString(16).padStart(2, '0'))
       .join('');
   }
-  // Fallback (non-web runtimes without SubtleCrypto)
   let h = 0;
   const s = `eightedge:${password}`;
   for (let i = 0; i < s.length; i++) h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
@@ -123,6 +161,7 @@ export const authStore = {
 
   hydrate() {
     if (ready) return getState();
+    migrateAuthKeys();
     currentUser = readSession() ?? GUEST;
     ready = true;
     emit();
@@ -145,8 +184,15 @@ export const authStore = {
     }
 
     const hash = await hashPassword(password);
-    if (hash !== found.passwordHash) {
+    const legacyHash = await hashPasswordLegacy(password);
+    if (hash !== found.passwordHash && legacyHash !== found.passwordHash) {
       throw new Error('Incorrect password.');
+    }
+
+    // Upgrade legacy password hashes to the new salt.
+    if (found.passwordHash === legacyHash && hash !== legacyHash) {
+      found.passwordHash = hash;
+      writeAccounts(accounts);
     }
 
     currentUser = {

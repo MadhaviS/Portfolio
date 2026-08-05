@@ -16,7 +16,8 @@ import {
   type ThemeMode,
 } from './tokens';
 
-const STORAGE_KEY = 'eightedge.theme.mode';
+const STORAGE_KEY = '8dgetech.theme.mode';
+const LEGACY_STORAGE_KEY = 'eightedge.theme.mode';
 
 type ThemeContextValue = {
   mode: ThemeMode;
@@ -37,7 +38,9 @@ function readStoredMode(): ThemeMode | null {
     return null;
   }
   try {
-    const raw = globalThis.localStorage.getItem(STORAGE_KEY);
+    const raw =
+      globalThis.localStorage.getItem(STORAGE_KEY) ??
+      globalThis.localStorage.getItem(LEGACY_STORAGE_KEY);
     if (raw === 'light' || raw === 'dark' || raw === 'system') return raw;
   } catch {
     // ignore
@@ -55,6 +58,7 @@ function writeStoredMode(mode: ThemeMode): void {
   }
   try {
     globalThis.localStorage.setItem(STORAGE_KEY, mode);
+    globalThis.localStorage.removeItem(LEGACY_STORAGE_KEY);
   } catch {
     // ignore
   }
