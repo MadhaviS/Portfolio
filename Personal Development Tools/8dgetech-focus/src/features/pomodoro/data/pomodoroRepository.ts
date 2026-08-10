@@ -15,6 +15,7 @@ import {
   computeStats,
   createId,
   buildDayLog,
+  normalizeSettings,
   toDateKey,
 } from '../domain/types';
 import type { DayLog } from '../domain/types';
@@ -101,16 +102,26 @@ function emptyWorkspace(): void {
   activeTaskId = null;
 }
 
+function orderTasks(
+  list: PomodoroTask[],
+  moveCompletedToBottom: boolean,
+): PomodoroTask[] {
+  const sorted = [...list].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  if (!moveCompletedToBottom) return sorted;
+  return [...sorted.filter((t) => !t.done), ...sorted.filter((t) => t.done)];
+}
+
 function loadWorkspace(userId: string): void {
   migrateUserKeys(userId);
   const keys = keysFor(userId);
-  const storedSettings = readJson<PomodoroSettings | null>(keys.settings, null);
-  settings = storedSettings
-    ? { ...DEFAULT_SETTINGS, ...storedSettings }
-    : { ...DEFAULT_SETTINGS };
+  const storedSettings = readJson<
+    (Partial<PomodoroSettings> & { autoContinue?: boolean }) | null
+  >(keys.settings, null);
+  settings = normalizeSettings(storedSettings);
   sessions = readJson<PomodoroSession[]>(keys.sessions, []);
   tasks = readJson<PomodoroTask[]>(keys.tasks, []);
   activeTaskId = readJson<string | null>(keys.activeTask, null);
+  tasks = orderTasks(tasks, settings.moveCompletedToBottom);
 }
 
 function workspaceHasContent(userId: string): boolean {
@@ -193,7 +204,7 @@ function adoptGuestWorkspaceIfNeeded(userId: string): void {
   writeJson(userKeys.tasks, mergeById(userTasks, guestTasks));
 
   if (storageGet(userKeys.settings) == null && guestSettings) {
-    writeJson(userKeys.settings, { ...DEFAULT_SETTINGS, ...guestSettings });
+    writeJson(userKeys.settings, normalizeSettings(guestSettings));
   }
   if (storageGet(userKeys.activeTask) == null && guestActive) {
     writeJson(userKeys.activeTask, guestActive);
@@ -222,7 +233,7 @@ function migrateLegacyIntoGuest(): void {
 
   if (!hasGuestData && hasLegacy) {
     if (legacySettings) {
-      writeJson(guestKeys.settings, { ...DEFAULT_SETTINGS, ...legacySettings });
+      writeJson(guestKeys.settings, normalizeSettings(legacySettings));
     }
     if (legacySessions) writeJson(guestKeys.sessions, legacySessions);
     if (legacyTasks) writeJson(guestKeys.tasks, legacyTasks);
@@ -265,7 +276,9 @@ function ensureBound(): void {
 export const pomodoroRepository = {
   subscribe(listener: WorkspaceListener) {
     listeners.add(listener);
-    return () => listeners.delete(listener);
+    return () => {
+      listeners.delete(listener);
+    };
   },
 
   getBoundUserId(): string | null {
@@ -328,7 +341,8 @@ export const pomodoroRepository = {
 
   saveSettings(next: PomodoroSettings): PomodoroSettings {
     ensureBound();
-    settings = { ...next };
+    settings = normalizeSettings(next);
+    tasks = orderTasks(tasks, settings.moveCompletedToBottom);
     persist();
     return this.getSettings();
   },
@@ -364,10 +378,7 @@ export const pomodoroRepository = {
 
   listTasks(): PomodoroTask[] {
     ensureBound();
-    // Workspace is already partitioned by user storage keys.
-    return tasks
-      .slice()
-      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    return orderTasks(tasks, settings.moveCompletedToBottom);
   },
 
   getActiveTaskId(): string | null {
@@ -414,6 +425,7 @@ export const pomodoroRepository = {
     if (typeof patch.estimatePomodoros === 'number') {
       found.estimatePomodoros = Math.max(1, patch.estimatePomodoros);
     }
+    tasks = orderTasks(tasks, settings.moveCompletedToBottom);
     persist();
     return found;
   },
@@ -433,10 +445,14 @@ export const pomodoroRepository = {
     const found = tasks.find((t) => t.id === activeTaskId);
     if (!found || found.done) return;
     found.completedPomodoros += 1;
-    if (found.completedPomodoros >= found.estimatePomodoros) {
+    if (
+      found.completedPomodoros >= found.estimatePomodoros &&
+      settings.autoCheckTasks
+    ) {
       found.done = true;
       activeTaskId = tasks.find((t) => !t.done)?.id ?? null;
     }
+    tasks = orderTasks(tasks, settings.moveCompletedToBottom);
     persist();
   },
 

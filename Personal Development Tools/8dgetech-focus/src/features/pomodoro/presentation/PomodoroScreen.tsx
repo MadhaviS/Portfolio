@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ImageBackground,
   Modal,
@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Feather } from '@expo/vector-icons';
 import {
   DEFAULT_SETTINGS,
   PHASE_THEME,
@@ -397,8 +398,8 @@ function SettingsModal({
             {
               backgroundColor: c.surface,
               borderColor: c.border,
-              maxHeight: height * (isCompact ? 0.88 : 0.82),
-              width: isCompact ? '100%' : Math.min(420, width - 48),
+              maxHeight: height * (isCompact ? 0.9 : 0.86),
+              width: isCompact ? '100%' : Math.min(440, width - 48),
             },
           ]}
         >
@@ -407,8 +408,8 @@ function SettingsModal({
           ) : null}
 
           <View style={styles.modalHeader}>
-            <Text style={[styles.modalTitle, { color: c.onSurface }]}>
-              Timer Setting
+            <Text style={[styles.modalTitle, { color: c.onSurfaceMuted }]}>
+              SETTING
             </Text>
             <Pressable
               onPress={onClose}
@@ -419,6 +420,7 @@ function SettingsModal({
               <Text style={[styles.modalCloseText, { color: c.onSurface }]}>×</Text>
             </Pressable>
           </View>
+          <View style={[styles.modalDivider, { backgroundColor: c.border }]} />
 
           <ScrollView
             bounces={false}
@@ -426,53 +428,96 @@ function SettingsModal({
             contentContainerStyle={styles.modalBody}
             keyboardShouldPersistTaps="handled"
           >
-            <NumberField
-              label="Pomodoro"
-              value={settings.focusMinutes}
+            <View style={styles.sectionHeader}>
+              <Feather name="clock" size={15} color={c.onSurfaceMuted} />
+              <Text style={[styles.sectionTitle, { color: c.onSurfaceMuted }]}>
+                TIMER
+              </Text>
+            </View>
+
+            <Text style={[styles.timeGroupLabel, { color: c.onSurface }]}>
+              Time (minutes)
+            </Text>
+            <View style={styles.timeRow}>
+              <MinuteInput
+                label="Pomodoro"
+                value={settings.focusMinutes}
+                disabled={disabled}
+                min={1}
+                max={120}
+                onChange={(focusMinutes) => onChange({ focusMinutes })}
+              />
+              <MinuteInput
+                label="Short Break"
+                value={settings.shortBreakMinutes}
+                disabled={disabled}
+                min={1}
+                max={60}
+                onChange={(shortBreakMinutes) => onChange({ shortBreakMinutes })}
+              />
+              <MinuteInput
+                label="Long Break"
+                value={settings.longBreakMinutes}
+                disabled={disabled}
+                min={1}
+                max={60}
+                onChange={(longBreakMinutes) => onChange({ longBreakMinutes })}
+              />
+            </View>
+
+            <ToggleRow
+              label="Auto Start Breaks"
+              value={settings.autoStartBreaks}
               disabled={disabled}
-              onChange={(focusMinutes) => onChange({ focusMinutes })}
+              onToggle={() =>
+                onChange({ autoStartBreaks: !settings.autoStartBreaks })
+              }
             />
-            <NumberField
-              label="Short Break"
-              value={settings.shortBreakMinutes}
+            <ToggleRow
+              label="Auto Start Pomodoros"
+              value={settings.autoStartPomodoros}
               disabled={disabled}
-              onChange={(shortBreakMinutes) => onChange({ shortBreakMinutes })}
+              onToggle={() =>
+                onChange({ autoStartPomodoros: !settings.autoStartPomodoros })
+              }
             />
-            <NumberField
-              label="Long Break"
-              value={settings.longBreakMinutes}
-              disabled={disabled}
-              onChange={(longBreakMinutes) => onChange({ longBreakMinutes })}
-            />
-            <NumberField
-              label="Long Break interval"
+            <LongBreakIntervalField
               value={settings.sessionsUntilLongBreak}
               disabled={disabled}
-              min={2}
-              max={8}
               onChange={(sessionsUntilLongBreak) =>
                 onChange({ sessionsUntilLongBreak })
               }
             />
 
-            <Pressable
+            <View style={[styles.modalDivider, { backgroundColor: c.border }]} />
+
+            <View style={styles.sectionHeader}>
+              <Feather name="check-square" size={15} color={c.onSurfaceMuted} />
+              <Text style={[styles.sectionTitle, { color: c.onSurfaceMuted }]}>
+                TASK
+              </Text>
+            </View>
+
+            <ToggleRow
+              label="Auto Check Tasks"
+              hint='If you enable "Auto Check Tasks", the active task will be automatically checked when the actual pomodoro count reaches the estimated count.'
+              value={settings.autoCheckTasks}
               disabled={disabled}
-              onPress={() => onChange({ autoContinue: !settings.autoContinue })}
-              style={[
-                styles.autoRow,
-                {
-                  borderColor: c.border,
-                  opacity: disabled ? 0.5 : 1,
-                },
-              ]}
-            >
-              <Text style={[styles.autoLabel, { color: c.onSurface }]}>
-                Auto start next phase
-              </Text>
-              <Text style={[styles.autoValue, { color: c.primary }]}>
-                {settings.autoContinue ? 'ON' : 'OFF'}
-              </Text>
-            </Pressable>
+              onToggle={() =>
+                onChange({ autoCheckTasks: !settings.autoCheckTasks })
+              }
+            />
+            <ToggleRow
+              label="Check to Bottom"
+              hint='If you enable "Auto Switch Tasks", the checked task will be automatically moved to the bottom of the task list.'
+              value={settings.moveCompletedToBottom}
+              disabled={disabled}
+              onToggle={() =>
+                onChange({
+                  moveCompletedToBottom: !settings.moveCompletedToBottom,
+                })
+              }
+            />
 
             <Pressable
               disabled={disabled}
@@ -489,14 +534,17 @@ function SettingsModal({
                 Reset to default
               </Text>
               <Text style={[styles.resetHint, { color: c.onSurfaceMuted }]}>
-                25 · 5 · 15 · auto on
+                25 · 5 · 15 · breaks auto · tasks manual
               </Text>
             </Pressable>
           </ScrollView>
 
           <Pressable
             onPress={onClose}
-            style={[styles.modalDone, { backgroundColor: isCompact ? '#BA4949' : c.primary }]}
+            style={[
+              styles.modalDone,
+              { backgroundColor: isCompact ? '#BA4949' : c.primary },
+            ]}
           >
             <Text
               style={[
@@ -513,44 +561,326 @@ function SettingsModal({
   );
 }
 
-function NumberField({
+function LongBreakIntervalField({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: number;
+  onChange: (n: number) => void;
+  disabled: boolean;
+}) {
+  const { theme } = useTheme();
+  const c = theme.colors;
+  const [text, setText] = useState(String(value));
+
+  useEffect(() => {
+    setText(String(value));
+  }, [value]);
+
+  const commit = (raw: string) => {
+    const parsed = Number.parseInt(raw.replace(/[^\d]/g, ''), 10);
+    if (Number.isNaN(parsed)) {
+      setText(String(value));
+      return;
+    }
+    const next = Math.min(12, Math.max(1, parsed));
+    setText(String(next));
+    if (next !== value) onChange(next);
+  };
+
+  return (
+    <View style={styles.intervalRow}>
+      <View style={styles.intervalCopy}>
+        <Text style={[styles.toggleLabel, { color: c.onSurface }]}>
+          Long Break interval
+        </Text>
+        <Text style={[styles.intervalHint, { color: c.onSurfaceMuted }]}>
+          Pomodoros until a long break
+        </Text>
+      </View>
+      <TextInput
+        value={text}
+        editable={!disabled}
+        keyboardType="number-pad"
+        inputMode="numeric"
+        selectTextOnFocus
+        onChangeText={setText}
+        onBlur={() => commit(text)}
+        onSubmitEditing={() => commit(text)}
+        style={[
+          styles.minuteInput,
+          styles.intervalInput,
+          {
+            color: c.onSurface,
+            backgroundColor: c.backgroundAlt,
+            borderColor: c.border,
+            opacity: disabled ? 0.5 : 1,
+          },
+        ]}
+      />
+    </View>
+  );
+}
+
+function MinuteInput({
   label,
   value,
   onChange,
   disabled,
-  min = 1,
-  max = 120,
+  min,
+  max,
+  compact,
 }: {
   label: string;
   value: number;
   onChange: (n: number) => void;
   disabled: boolean;
-  min?: number;
-  max?: number;
+  min: number;
+  max: number;
+  compact?: boolean;
 }) {
   const { theme } = useTheme();
   const c = theme.colors;
+  const [text, setText] = useState(String(value));
+
+  useEffect(() => {
+    setText(String(value));
+  }, [value]);
+
+  const commit = (raw: string) => {
+    const parsed = Number.parseInt(raw.replace(/[^\d]/g, ''), 10);
+    if (Number.isNaN(parsed)) {
+      setText(String(value));
+      return;
+    }
+    const next = Math.min(max, Math.max(min, parsed));
+    setText(String(next));
+    if (next !== value) onChange(next);
+  };
 
   return (
-    <View style={styles.numberField}>
-      <Text style={[styles.numberLabel, { color: c.onSurfaceMuted }]}>{label}</Text>
-      <View style={styles.numberControls}>
-        <Pressable
-          disabled={disabled}
-          onPress={() => onChange(Math.max(min, value - 1))}
-          style={[styles.numBtn, { backgroundColor: c.backgroundAlt }]}
-        >
-          <Text style={[styles.numBtnText, { color: c.onSurface }]}>−</Text>
-        </Pressable>
-        <Text style={[styles.numberValue, { color: c.onSurface }]}>{value}</Text>
-        <Pressable
-          disabled={disabled}
-          onPress={() => onChange(Math.min(max, value + 1))}
-          style={[styles.numBtn, { backgroundColor: c.backgroundAlt }]}
-        >
-          <Text style={[styles.numBtnText, { color: c.onSurface }]}>+</Text>
-        </Pressable>
+    <View style={[styles.minuteField, compact && styles.minuteFieldCompact]}>
+      {label ? (
+        <Text style={[styles.minuteLabel, { color: c.onSurfaceMuted }]}>
+          {label}
+        </Text>
+      ) : null}
+      <TextInput
+        value={text}
+        editable={!disabled}
+        keyboardType="number-pad"
+        inputMode="numeric"
+        selectTextOnFocus
+        onChangeText={setText}
+        onBlur={() => commit(text)}
+        onSubmitEditing={() => commit(text)}
+        style={[
+          styles.minuteInput,
+          compact && styles.minuteInputCompact,
+          {
+            color: c.onSurface,
+            backgroundColor: c.backgroundAlt,
+            borderColor: c.border,
+            opacity: disabled ? 0.5 : 1,
+          },
+        ]}
+      />
+    </View>
+  );
+}
+
+function ToggleRow({
+  label,
+  hint,
+  value,
+  disabled,
+  onToggle,
+}: {
+  label: string;
+  hint?: string;
+  value: boolean;
+  disabled: boolean;
+  onToggle: () => void;
+}) {
+  const { theme } = useTheme();
+  const c = theme.colors;
+  const { width: winW, height: winH } = useWindowDimensions();
+  const [tooltipOpen, setTooltipOpen] = useState(false);
+  const [anchor, setAnchor] = useState<{ x: number; y: number; w: number; h: number } | null>(
+    null,
+  );
+  const [bubbleH, setBubbleH] = useState(0);
+  const infoRef = useRef<View>(null);
+  const bubbleMaxW = Math.min(280, winW - 24);
+  // Match super_tooltip-style tipDistance: sit almost against the target.
+  const tipGap = 3;
+  const arrowSize = 8;
+
+  const openTooltip = () => {
+    const node = infoRef.current as unknown as {
+      measureInWindow?: (
+        cb: (x: number, y: number, w: number, h: number) => void,
+      ) => void;
+    } | null;
+    if (node?.measureInWindow) {
+      node.measureInWindow((x, y, w, h) => {
+        setBubbleH(0);
+        setAnchor({ x, y, w, h });
+        setTooltipOpen(true);
+      });
+      return;
+    }
+    setBubbleH(0);
+    setAnchor(null);
+    setTooltipOpen(true);
+  };
+
+  const estimatedH = bubbleH || 72;
+  const spaceBelow = anchor ? winH - (anchor.y + anchor.h) : winH;
+  const placeBelow = !anchor || spaceBelow >= estimatedH + tipGap + arrowSize + 12;
+  const bubbleTop = anchor
+    ? placeBelow
+      ? anchor.y + anchor.h + tipGap
+      : Math.max(8, anchor.y - tipGap - arrowSize - estimatedH)
+    : 120;
+  const anchorCenterX = anchor ? anchor.x + anchor.w / 2 : 40;
+  const bubbleLeft = Math.max(
+    12,
+    Math.min(anchorCenterX - 28, winW - bubbleMaxW - 12),
+  );
+  const arrowLeft = Math.max(
+    12,
+    Math.min(anchorCenterX - bubbleLeft - arrowSize, bubbleMaxW - 24),
+  );
+
+  return (
+    <View style={[styles.toggleRow, { opacity: disabled ? 0.5 : 1 }]}>
+      <View style={styles.toggleCopy}>
+        <View style={styles.toggleLabelRow}>
+          <Pressable
+            disabled={disabled}
+            onPress={onToggle}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: value }}
+            accessibilityLabel={label}
+            accessibilityHint={hint}
+            style={styles.toggleLabelHit}
+          >
+            <Text style={[styles.toggleLabel, { color: c.onSurface }]}>
+              {label}
+            </Text>
+          </Pressable>
+          {hint ? (
+            <View ref={infoRef} collapsable={false}>
+              <Pressable
+                onPress={openTooltip}
+                hitSlop={8}
+                accessibilityLabel={`${label} info`}
+                accessibilityHint={hint}
+                style={styles.infoHit}
+              >
+                <Text style={[styles.infoMark, { color: c.onSurfaceMuted }]}>
+                  ⓘ
+                </Text>
+              </Pressable>
+            </View>
+          ) : null}
+        </View>
       </View>
+      <Pressable
+        disabled={disabled}
+        onPress={onToggle}
+        accessibilityRole="switch"
+        accessibilityState={{ checked: value }}
+        accessibilityLabel={label}
+      >
+        <View
+          style={[
+            styles.switchTrack,
+            {
+              backgroundColor: value ? '#7CB342' : c.border,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.switchThumb,
+              value ? styles.switchThumbOn : styles.switchThumbOff,
+            ]}
+          />
+        </View>
+      </Pressable>
+
+      {hint ? (
+        <Modal
+          visible={tooltipOpen}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setTooltipOpen(false)}
+        >
+          <View style={styles.tooltipOverlay}>
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={() => setTooltipOpen(false)}
+              accessibilityLabel="Dismiss info"
+            />
+            <View
+              pointerEvents="box-none"
+              style={[
+                styles.tooltipFloatWrap,
+                {
+                  top: bubbleTop,
+                  left: bubbleLeft,
+                  width: bubbleMaxW,
+                },
+              ]}
+            >
+              {placeBelow ? (
+                <View
+                  style={[
+                    styles.tooltipArrowUp,
+                    {
+                      marginLeft: arrowLeft,
+                      borderBottomColor: c.surface,
+                    },
+                  ]}
+                />
+              ) : null}
+              <View
+                onLayout={(e) => {
+                  const h = e.nativeEvent.layout.height;
+                  if (h > 0 && Math.abs(h - bubbleH) > 1) {
+                    setBubbleH(h);
+                  }
+                }}
+                style={[
+                  styles.tooltipBubble,
+                  {
+                    backgroundColor: c.surface,
+                    borderColor: c.border,
+                  },
+                ]}
+              >
+                <Text style={[styles.tooltipText, { color: c.onSurface }]}>
+                  {hint}
+                </Text>
+              </View>
+              {!placeBelow ? (
+                <View
+                  style={[
+                    styles.tooltipArrowDown,
+                    {
+                      marginLeft: arrowLeft,
+                      borderTopColor: c.surface,
+                    },
+                  ]}
+                />
+              ) : null}
+            </View>
+          </View>
+        </Modal>
+      ) : null}
     </View>
   );
 }
@@ -860,7 +1190,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 8,
   },
-  modalTitle: { fontSize: 18, fontWeight: '700' },
+  modalTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    flex: 1,
+    textAlign: 'center',
+    marginLeft: 32,
+  },
   modalClose: {
     width: 32,
     height: 32,
@@ -873,44 +1210,174 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     lineHeight: 24,
   },
+  modalDivider: {
+    height: StyleSheet.hairlineWidth,
+    width: '100%',
+    marginBottom: 4,
+  },
   modalBody: {
     gap: 14,
     paddingVertical: 8,
     paddingBottom: 12,
   },
-  numberField: {
+  sectionHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  numberLabel: { fontSize: 14, fontWeight: '600' },
-  numberControls: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  numBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  numBtnText: { fontSize: 18, fontWeight: '600' },
-  numberValue: {
-    minWidth: 28,
-    textAlign: 'center',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  autoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderWidth: 1,
-    borderRadius: 10,
+    gap: 8,
     marginTop: 4,
   },
-  autoLabel: { fontSize: 14, fontWeight: '600' },
-  autoValue: { fontWeight: '800' },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 1.1,
+  },
+  timeGroupLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  timeRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  minuteField: {
+    flex: 1,
+    gap: 6,
+  },
+  minuteFieldCompact: {
+    flex: 0,
+    width: 64,
+  },
+  minuteLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  minuteInput: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingVertical: Platform.OS === 'web' ? 10 : 12,
+    paddingHorizontal: 8,
+    textAlign: 'center',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  minuteInputCompact: {
+    width: 64,
+    fontSize: 16,
+  },
+  intervalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  intervalCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  intervalHint: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  intervalInput: {
+    width: 72,
+    flexGrow: 0,
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    paddingVertical: 6,
+  },
+  toggleCopy: { flex: 1 },
+  toggleLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  toggleLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  toggleLabelHit: {
+    flexShrink: 1,
+  },
+  infoHit: {
+    padding: 2,
+  },
+  infoMark: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  tooltipOverlay: {
+    flex: 1,
+  },
+  tooltipFloatWrap: {
+    position: 'absolute',
+    zIndex: 20,
+  },
+  tooltipArrowUp: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 8,
+    borderRightWidth: 8,
+    borderBottomWidth: 8,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+  },
+  tooltipArrowDown: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 8,
+    borderRightWidth: 8,
+    borderTopWidth: 8,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+  },
+  tooltipBubble: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    ...Platform.select({
+      web: {
+        boxShadow: '0 8px 20px rgba(0,0,0,0.16)',
+      } as object,
+      default: {
+        elevation: 10,
+        shadowColor: '#000',
+        shadowOpacity: 0.22,
+        shadowRadius: 10,
+        shadowOffset: { width: 0, height: 4 },
+      },
+    }),
+  },
+  tooltipText: {
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '500',
+  },
+  switchTrack: {
+    width: 46,
+    height: 26,
+    borderRadius: 13,
+    padding: 3,
+    justifyContent: 'center',
+  },
+  switchThumb: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+  },
+  switchThumbOn: {
+    alignSelf: 'flex-end',
+  },
+  switchThumbOff: {
+    alignSelf: 'flex-start',
+  },
   resetBtn: {
     borderWidth: 1,
     borderRadius: 10,
@@ -919,7 +1386,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     alignItems: 'center',
     gap: 2,
-    marginTop: 4,
+    marginTop: 8,
   },
   resetBtnText: {
     fontSize: 14,

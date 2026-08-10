@@ -8,6 +8,7 @@ import {
   durationForPhase,
   estimateFinishAt,
   nextPhase,
+  normalizeSettings,
   type PomodoroPhase,
   type PomodoroSession,
   type PomodoroSettings,
@@ -148,11 +149,15 @@ export function usePomodoroTimer() {
     refreshInsight();
     applyPhase(upcoming);
 
-    const auto = settingsRef.current.autoContinue;
+    const cfg = settingsRef.current;
+    const shouldAuto =
+      (currentPhase === 'focus' && cfg.autoStartBreaks) ||
+      ((currentPhase === 'shortBreak' || currentPhase === 'longBreak') &&
+        cfg.autoStartPomodoros);
     finishingRef.current = false;
 
-    if (auto) {
-      const seconds = durationForPhase(upcoming, settingsRef.current);
+    if (shouldAuto) {
+      const seconds = durationForPhase(upcoming, cfg);
       setTimeout(() => beginSession(upcoming, seconds), 400);
     }
   }, [applyPhase, beginSession, clearTick, refreshInsight]);
@@ -228,17 +233,23 @@ export function usePomodoroTimer() {
 
   const updateSettings = useCallback(
     (partial: Partial<PomodoroSettings>) => {
-      const merged = { ...settings, ...partial };
+      const merged = normalizeSettings({ ...settings, ...partial });
       merged.focusMinutes = clampMinutes(merged.focusMinutes, 1, 120);
       merged.shortBreakMinutes = clampMinutes(merged.shortBreakMinutes, 1, 60);
       merged.longBreakMinutes = clampMinutes(merged.longBreakMinutes, 1, 60);
+      merged.sessionsUntilLongBreak = clampMinutes(
+        merged.sessionsUntilLongBreak,
+        1,
+        12,
+      );
       const next = pomodoroRepository.saveSettings(merged);
       setSettings(next);
       if (!running && !sessionIdRef.current) {
         setRemaining(durationForPhase(phase, next));
       }
+      refreshInsight();
     },
-    [phase, running, settings],
+    [phase, refreshInsight, running, settings],
   );
 
   const addTask = useCallback(

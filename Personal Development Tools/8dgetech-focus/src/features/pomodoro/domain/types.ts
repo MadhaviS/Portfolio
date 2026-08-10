@@ -5,7 +5,14 @@ export type PomodoroSettings = {
   shortBreakMinutes: number;
   longBreakMinutes: number;
   sessionsUntilLongBreak: number;
-  autoContinue: boolean;
+  /** After a focus session ends, auto-start the break. */
+  autoStartBreaks: boolean;
+  /** After a break ends, auto-start the next focus. */
+  autoStartPomodoros: boolean;
+  /** When estimate is reached, mark the task done automatically. */
+  autoCheckTasks: boolean;
+  /** Keep completed tasks at the bottom of the list. */
+  moveCompletedToBottom: boolean;
 };
 
 export type PomodoroSession = {
@@ -68,8 +75,32 @@ export const DEFAULT_SETTINGS: PomodoroSettings = {
   shortBreakMinutes: 5,
   longBreakMinutes: 15,
   sessionsUntilLongBreak: 4,
-  autoContinue: true,
+  autoStartBreaks: true,
+  autoStartPomodoros: false,
+  autoCheckTasks: false,
+  moveCompletedToBottom: true,
 };
+
+/** Normalize stored settings (incl. legacy `autoContinue`). */
+export function normalizeSettings(
+  raw: Partial<PomodoroSettings> & { autoContinue?: boolean } | null | undefined,
+): PomodoroSettings {
+  if (!raw) return { ...DEFAULT_SETTINGS };
+  const { autoContinue, ...rest } = raw;
+  const merged: PomodoroSettings = {
+    ...DEFAULT_SETTINGS,
+    ...rest,
+  };
+  if (
+    autoContinue !== undefined &&
+    raw.autoStartBreaks === undefined &&
+    raw.autoStartPomodoros === undefined
+  ) {
+    merged.autoStartBreaks = autoContinue;
+    merged.autoStartPomodoros = autoContinue;
+  }
+  return merged;
+}
 
 export function minutesToSeconds(minutes: number): number {
   return Math.max(1, Math.round(minutes * 60));
