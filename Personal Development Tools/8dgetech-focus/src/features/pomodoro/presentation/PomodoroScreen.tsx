@@ -37,7 +37,7 @@ import { IconGear, IconMoon, IconSun } from '../../../core/theme/LineIcons';
 import { previewSound } from '../data/pomodoroAudio';
 
 const MODES: PomodoroPhase[] = ['focus', 'shortBreak', 'longBreak'];
-const DOODLE_BG_LIGHT = require('../../../../assets/landing-doodles-bg-light.png');
+const DOODLE_BG_LIGHT = require('../../../../assets/pomodoro-doodles-bg-light.png');
 const DOODLE_BG_DARK = require('../../../../assets/landing-doodles-bg-dark.png');
 
 export function PomodoroScreen() {
@@ -75,9 +75,15 @@ export function PomodoroScreen() {
   const theme = PHASE_THEME[phase];
   const isLight = resolved === 'light';
   const c = appTheme.colors;
-  const chromeInk = c.onSurface;
-  const chromeMuted = c.onSurfaceMuted;
-  const chromeBtnBg = isLight ? 'rgba(26,28,32,0.06)' : 'rgba(255,248,242,0.08)';
+  /** Light theme follows pomofocus: solid phase color + frosted panels + white chrome. */
+  const pageBg = isLight ? theme.bg : c.background;
+  const panelBg = isLight ? 'rgba(255,255,255,0.1)' : theme.bg;
+  const chromeInk = isLight ? '#FFFFFF' : c.onSurface;
+  const chromeMuted = isLight ? 'rgba(255,255,255,0.75)' : c.onSurfaceMuted;
+  const chromeBtnBg = isLight
+    ? 'rgba(255,255,255,0.14)'
+    : 'rgba(255,248,242,0.08)';
+  const chromeBorder = isLight ? 'rgba(255,255,255,0.22)' : c.border;
   const isPartial = remaining > 0 && remaining < durationForPhaseSeconds(settings, phase);
 
   useEffect(() => {
@@ -89,13 +95,20 @@ export function PomodoroScreen() {
     };
   }, [remaining, phase]);
 
-  return (
-    <ImageBackground
-      source={isLight ? DOODLE_BG_LIGHT : DOODLE_BG_DARK}
-      style={[styles.root, { backgroundColor: c.background }]}
-      imageStyle={styles.bgImage}
-      resizeMode="cover"
-    >
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    const prevHtml = document.documentElement.style.backgroundColor;
+    const prevBody = document.body.style.backgroundColor;
+    document.documentElement.style.backgroundColor = pageBg;
+    document.body.style.backgroundColor = pageBg;
+    return () => {
+      document.documentElement.style.backgroundColor = prevHtml;
+      document.body.style.backgroundColor = prevBody;
+    };
+  }, [pageBg]);
+
+  const chrome = (
+    <>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
@@ -107,7 +120,7 @@ export function PomodoroScreen() {
             hitSlop={8}
             accessibilityLabel="Back to home"
           >
-            <Text style={[styles.brand, { color: theme.bg }]}>Pomodoro</Text>
+            <Text style={[styles.brand, { color: chromeInk }]}>Pomodoro</Text>
           </Pressable>
           <View style={styles.topActions}>
             <Pressable
@@ -117,7 +130,7 @@ export function PomodoroScreen() {
                 styles.iconAction,
                 {
                   backgroundColor: chromeBtnBg,
-                  borderColor: isLight ? 'rgba(26,28,32,0.12)' : c.border,
+                  borderColor: chromeBorder,
                   opacity: pressed ? 0.7 : 1,
                 },
               ]}
@@ -132,7 +145,7 @@ export function PomodoroScreen() {
                 styles.iconAction,
                 {
                   backgroundColor: chromeBtnBg,
-                  borderColor: isLight ? 'rgba(26,28,32,0.12)' : c.border,
+                  borderColor: chromeBorder,
                   opacity: pressed ? 0.7 : 1,
                 },
               ]}
@@ -144,7 +157,7 @@ export function PomodoroScreen() {
                 styles.iconAction,
                 {
                   backgroundColor: chromeBtnBg,
-                  borderColor: isLight ? 'rgba(26,28,32,0.12)' : c.border,
+                  borderColor: chromeBorder,
                   opacity: pressed ? 0.7 : 1,
                 },
               ]}
@@ -158,7 +171,7 @@ export function PomodoroScreen() {
           </View>
         </View>
 
-        <View style={[styles.timerCard, { backgroundColor: theme.bg }]}>
+        <View style={[styles.timerCard, { backgroundColor: panelBg }]}>
           <View style={styles.modeTabs}>
             {MODES.map((mode) => {
               const active = mode === phase;
@@ -210,7 +223,7 @@ export function PomodoroScreen() {
           </Pressable>
         </View>
 
-        <View style={[styles.tasksCard, { backgroundColor: theme.bg }]}>
+        <View style={[styles.tasksCard, { backgroundColor: panelBg }]}>
           <View style={styles.tasksHeader}>
             <Text style={styles.tasksTitle}>Tasks</Text>
             <Pressable
@@ -252,7 +265,7 @@ export function PomodoroScreen() {
           </Pressable>
         </View>
 
-        <View style={[styles.finishCard, { backgroundColor: theme.bg }]}>
+        <View style={[styles.finishCard, { backgroundColor: panelBg }]}>
           <Text style={styles.finishLabel}>Est. finish</Text>
           <Text style={styles.finishValue}>{formatFinishClock(finishAt)}</Text>
           <Text style={styles.finishHint}>
@@ -315,6 +328,17 @@ export function PomodoroScreen() {
             : undefined
         }
       />
+    </>
+  );
+
+  return (
+    <ImageBackground
+      source={isLight ? DOODLE_BG_LIGHT : DOODLE_BG_DARK}
+      style={[styles.root, { backgroundColor: pageBg }]}
+      imageStyle={styles.bgImage}
+      resizeMode="cover"
+    >
+      {chrome}
     </ImageBackground>
   );
 }
@@ -1213,7 +1237,7 @@ function durationForPhaseSeconds(
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, width: '100%' },
+  root: { flex: 1, width: '100%', overflow: 'hidden' },
   bgImage: {
     width: '100%',
     height: '100%',
@@ -1415,8 +1439,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   checkOn: {
-    backgroundColor: '#BA4949',
-    borderColor: '#BA4949',
+    backgroundColor: '#C64642',
+    borderColor: '#C64642',
   },
   taskTitle: {
     flex: 1,
@@ -1482,7 +1506,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   taskMenuDanger: {
-    color: '#BA4949',
+    color: '#C64642',
     fontWeight: '700',
     fontSize: 14,
   },

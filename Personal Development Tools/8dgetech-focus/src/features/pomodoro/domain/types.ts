@@ -91,9 +91,9 @@ export const PHASE_THEME: Record<
   { bg: string; panel: string; accent: string; label: string }
 > = {
   focus: {
-    bg: '#BA4949',
+    bg: '#C64642',
     panel: 'rgba(255,255,255,0.16)',
-    accent: '#C15C5C',
+    accent: '#D45B57',
     label: 'Pomodoro',
   },
   shortBreak: {
