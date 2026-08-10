@@ -69,6 +69,7 @@ export type PomodoroTask = {
   id: string;
   userId: string;
   title: string;
+  note: string;
   estimatePomodoros: number;
   completedPomodoros: number;
   done: boolean;

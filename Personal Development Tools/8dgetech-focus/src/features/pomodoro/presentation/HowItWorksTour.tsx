@@ -123,7 +123,7 @@ export function HowItWorksTour({
                 style={[
                   styles.dot,
                   {
-                    backgroundColor: done ? '#BA4949' : c.border,
+                    backgroundColor: done ? c.primary : c.border,
                     width: i === index ? 18 : 8,
                   },
                 ]}
@@ -157,7 +157,7 @@ export function HowItWorksTour({
 
             <Pressable
               onPress={next}
-              style={[styles.primaryBtn, { backgroundColor: '#BA4949' }]}
+              style={[styles.primaryBtn, { backgroundColor: c.primary }]}
             >
               <Text style={styles.primaryLabel}>
                 {isLast ? 'Got it' : 'Next'}

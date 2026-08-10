@@ -282,8 +282,23 @@ export function usePomodoroTimer() {
   );
 
   const addTask = useCallback(
-    (title: string, estimate = 1) => {
-      pomodoroRepository.addTask(title, estimate);
+    (title: string, estimate = 1, note = '') => {
+      pomodoroRepository.addTask(title, estimate, note);
+      refreshInsight();
+    },
+    [refreshInsight],
+  );
+
+  const updateTaskDetails = useCallback(
+    (
+      id: string,
+      patch: { title: string; estimate: number; note: string },
+    ) => {
+      pomodoroRepository.updateTask(id, {
+        title: patch.title,
+        estimatePomodoros: patch.estimate,
+        note: patch.note,
+      });
       refreshInsight();
     },
     [refreshInsight],
@@ -312,7 +327,20 @@ export function usePomodoroTimer() {
       const task = pomodoroRepository.listTasks().find((t) => t.id === id);
       if (!task) return;
       pomodoroRepository.updateTask(id, {
-        estimatePomodoros: Math.max(1, task.estimatePomodoros + delta),
+        estimatePomodoros: Math.max(1, Math.min(99, task.estimatePomodoros + delta)),
+      });
+      refreshInsight();
+    },
+    [refreshInsight],
+  );
+
+  const setEstimate = useCallback(
+    (id: string, value: number) => {
+      const task = pomodoroRepository.listTasks().find((t) => t.id === id);
+      if (!task) return;
+      const next = Number.isFinite(value) ? Math.round(value) : task.estimatePomodoros;
+      pomodoroRepository.updateTask(id, {
+        estimatePomodoros: Math.max(1, Math.min(99, next)),
       });
       refreshInsight();
     },
@@ -355,9 +383,11 @@ export function usePomodoroTimer() {
     selectPhase,
     updateSettings,
     addTask,
+    updateTaskDetails,
     selectTask,
     toggleTaskDone,
     changeEstimate,
+    setEstimate,
     deleteTask,
   };
 }

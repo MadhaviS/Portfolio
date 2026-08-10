@@ -30,6 +30,7 @@ import { HowItWorksTour } from './HowItWorksTour';
 import { useHowItWorksTour } from './useHowItWorksTour';
 import { ReportModal } from './ReportModal';
 import { CalendarModal } from './CalendarModal';
+import { AddTaskModal } from './AddTaskModal';
 import { useTheme } from '../../../core/theme/ThemeProvider';
 import { AuthAccountButton } from '../../../core/auth/AuthAccountButton';
 import { IconGear, IconMoon, IconSun } from '../../../core/theme/LineIcons';
@@ -57,9 +58,9 @@ export function PomodoroScreen() {
     selectPhase,
     updateSettings,
     addTask,
+    updateTaskDetails,
     selectTask,
     toggleTaskDone,
-    changeEstimate,
     deleteTask,
   } = usePomodoroTimer();
 
@@ -68,14 +69,15 @@ export function PomodoroScreen() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
-  const [draftTitle, setDraftTitle] = useState('');
+  const [taskModalOpen, setTaskModalOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<PomodoroTask | null>(null);
   const { open: tourOpen, complete: completeTour } = useHowItWorksTour();
   const theme = PHASE_THEME[phase];
   const isLight = resolved === 'light';
   const c = appTheme.colors;
-  const chromeInk = isLight ? '#3A322C' : c.onSurface;
-  const chromeMuted = isLight ? 'rgba(58,50,44,0.55)' : c.onSurfaceMuted;
-  const chromeBtnBg = isLight ? 'rgba(42,36,32,0.06)' : 'rgba(255,248,242,0.08)';
+  const chromeInk = c.onSurface;
+  const chromeMuted = c.onSurfaceMuted;
+  const chromeBtnBg = isLight ? 'rgba(26,28,32,0.06)' : 'rgba(255,248,242,0.08)';
   const isPartial = remaining > 0 && remaining < durationForPhaseSeconds(settings, phase);
 
   useEffect(() => {
@@ -115,7 +117,7 @@ export function PomodoroScreen() {
                 styles.iconAction,
                 {
                   backgroundColor: chromeBtnBg,
-                  borderColor: isLight ? 'rgba(42,36,32,0.12)' : c.border,
+                  borderColor: isLight ? 'rgba(26,28,32,0.12)' : c.border,
                   opacity: pressed ? 0.7 : 1,
                 },
               ]}
@@ -130,7 +132,7 @@ export function PomodoroScreen() {
                 styles.iconAction,
                 {
                   backgroundColor: chromeBtnBg,
-                  borderColor: isLight ? 'rgba(42,36,32,0.12)' : c.border,
+                  borderColor: isLight ? 'rgba(26,28,32,0.12)' : c.border,
                   opacity: pressed ? 0.7 : 1,
                 },
               ]}
@@ -142,7 +144,7 @@ export function PomodoroScreen() {
                 styles.iconAction,
                 {
                   backgroundColor: chromeBtnBg,
-                  borderColor: isLight ? 'rgba(42,36,32,0.12)' : c.border,
+                  borderColor: isLight ? 'rgba(26,28,32,0.12)' : c.border,
                   opacity: pressed ? 0.7 : 1,
                 },
               ]}
@@ -211,7 +213,13 @@ export function PomodoroScreen() {
         <View style={[styles.tasksCard, { backgroundColor: theme.bg }]}>
           <View style={styles.tasksHeader}>
             <Text style={styles.tasksTitle}>Tasks</Text>
-            <Text style={styles.tasksMeta}>Estimate (Pomodoros)</Text>
+            <Pressable
+              accessibilityLabel="Task options"
+              style={styles.tasksMenuBtn}
+              hitSlop={6}
+            >
+              <Feather name="more-vertical" size={16} color="#fff" />
+            </Pressable>
           </View>
 
           <View style={styles.taskList}>
@@ -220,40 +228,28 @@ export function PomodoroScreen() {
                 key={task.id}
                 task={task}
                 active={task.id === activeTaskId}
-                accent={theme.bg}
                 onSelect={() => selectTask(task.id)}
                 onToggle={() => toggleTaskDone(task.id)}
-                onInc={() => changeEstimate(task.id, 1)}
-                onDec={() => changeEstimate(task.id, -1)}
-                onDelete={() => deleteTask(task.id)}
+                onEdit={() => {
+                  setEditingTask(task);
+                  setTaskModalOpen(true);
+                }}
               />
             ))}
           </View>
 
-          <View style={styles.addRow}>
-            <TextInput
-              value={draftTitle}
-              onChangeText={setDraftTitle}
-              placeholder="Add a new task..."
-              placeholderTextColor="rgba(255,255,255,0.55)"
-              style={styles.addInput}
-              onSubmitEditing={() => {
-                if (!draftTitle.trim()) return;
-                addTask(draftTitle.trim(), 1);
-                setDraftTitle('');
-              }}
-            />
-            <Pressable
-              onPress={() => {
-                if (!draftTitle.trim()) return;
-                addTask(draftTitle.trim(), 1);
-                setDraftTitle('');
-              }}
-              style={styles.addBtn}
-            >
-              <Text style={styles.addBtnText}>Add Task</Text>
-            </Pressable>
-          </View>
+          <Pressable
+            onPress={() => {
+              setEditingTask(null);
+              setTaskModalOpen(true);
+            }}
+            style={({ pressed }) => [
+              styles.addTaskBtn,
+              { opacity: pressed ? 0.88 : 1 },
+            ]}
+          >
+            <Text style={styles.addTaskBtnText}>+ Add Task</Text>
+          </Pressable>
         </View>
 
         <View style={[styles.finishCard, { backgroundColor: theme.bg }]}>
@@ -294,6 +290,31 @@ export function PomodoroScreen() {
       />
 
       <HowItWorksTour open={tourOpen} onFinish={completeTour} />
+
+      <AddTaskModal
+        open={taskModalOpen}
+        initialTask={editingTask}
+        onClose={() => {
+          setTaskModalOpen(false);
+          setEditingTask(null);
+        }}
+        onSave={({ title, estimate, note }) => {
+          if (editingTask) {
+            updateTaskDetails(editingTask.id, { title, estimate, note });
+          } else {
+            addTask(title, estimate, note);
+          }
+        }}
+        onDelete={
+          editingTask
+            ? () => {
+                deleteTask(editingTask.id);
+                setTaskModalOpen(false);
+                setEditingTask(null);
+              }
+            : undefined
+        }
+      />
     </ImageBackground>
   );
 }
@@ -301,63 +322,66 @@ export function PomodoroScreen() {
 function TaskRow({
   task,
   active,
-  accent,
   onSelect,
   onToggle,
-  onInc,
-  onDec,
-  onDelete,
+  onEdit,
 }: {
   task: PomodoroTask;
   active: boolean;
-  accent: string;
   onSelect: () => void;
   onToggle: () => void;
-  onInc: () => void;
-  onDec: () => void;
-  onDelete: () => void;
+  onEdit: () => void;
 }) {
   return (
-    <Pressable
-      onPress={onSelect}
-      style={[
-        styles.taskRow,
-        active && styles.taskRowActive,
-        task.done && styles.taskRowDone,
-      ]}
-    >
-      <Pressable onPress={onToggle} hitSlop={8} style={styles.checkHit}>
-        <View style={[styles.check, task.done && styles.checkOn]}>
-          {task.done ? (
-            <Text style={[styles.checkMark, { color: accent }]}>✓</Text>
+    <View style={styles.taskCardWrap}>
+      <Pressable
+        onPress={onSelect}
+        style={[
+          styles.taskCard,
+          active && styles.taskCardActive,
+          task.done && styles.taskCardDone,
+        ]}
+      >
+        <View style={[styles.taskAccent, active && styles.taskAccentOn]} />
+        <View style={styles.taskCardInner}>
+          <View style={styles.taskMainRow}>
+            <Pressable onPress={onToggle} hitSlop={8} style={styles.checkHit}>
+              <View style={[styles.check, task.done && styles.checkOn]}>
+                {task.done ? (
+                  <Feather name="check" size={14} color="#FFFFFF" />
+                ) : null}
+              </View>
+            </Pressable>
+
+            <Text
+              style={[styles.taskTitle, task.done && styles.taskTitleDone]}
+              numberOfLines={2}
+            >
+              {task.title}
+            </Text>
+
+            <Text style={styles.taskCount}>
+              {task.completedPomodoros} / {task.estimatePomodoros}
+            </Text>
+
+            <Pressable
+              onPress={onEdit}
+              hitSlop={6}
+              accessibilityLabel="Edit task"
+              style={styles.taskMoreBtn}
+            >
+              <Feather name="more-vertical" size={16} color="#777" />
+            </Pressable>
+          </View>
+
+          {task.note ? (
+            <View style={styles.noteBox}>
+              <Text style={styles.noteText}>{task.note}</Text>
+            </View>
           ) : null}
         </View>
       </Pressable>
-
-      <View style={styles.taskBody}>
-        <Text
-          style={[styles.taskTitle, task.done && styles.taskTitleDone]}
-          numberOfLines={2}
-        >
-          {task.title}
-        </Text>
-        <Text style={styles.taskPomos}>
-          {task.completedPomodoros}/{task.estimatePomodoros}
-        </Text>
-      </View>
-
-      <View style={styles.estControls}>
-        <Pressable onPress={onDec} style={styles.estBtn}>
-          <Text style={styles.estBtnText}>−</Text>
-        </Pressable>
-        <Pressable onPress={onInc} style={styles.estBtn}>
-          <Text style={styles.estBtnText}>+</Text>
-        </Pressable>
-        <Pressable onPress={onDelete} style={styles.estBtn}>
-          <Text style={styles.estBtnText}>×</Text>
-        </Pressable>
-      </View>
-    </Pressable>
+    </View>
   );
 }
 
@@ -579,13 +603,13 @@ function SettingsModal({
             onPress={onClose}
             style={[
               styles.modalDone,
-              { backgroundColor: isCompact ? '#BA4949' : c.primary },
+              { backgroundColor: c.primary },
             ]}
           >
             <Text
               style={[
                 styles.modalDoneText,
-                { color: isCompact ? '#FFFFFF' : c.primaryText },
+                { color: c.primaryText },
               ]}
             >
               OK
@@ -1089,7 +1113,7 @@ function ToggleRow({
           style={[
             styles.switchTrack,
             {
-              backgroundColor: value ? '#7CB342' : c.border,
+              backgroundColor: value ? c.success : c.border,
             },
           ]}
         >
@@ -1326,90 +1350,157 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 14,
-    gap: 10,
+    gap: 12,
   },
   tasksHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     paddingBottom: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255,255,255,0.35)',
+    borderBottomWidth: 2,
+    borderBottomColor: 'rgba(255,255,255,0.9)',
   },
   tasksTitle: { color: '#fff', fontSize: 18, fontWeight: '700' },
-  tasksMeta: { color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: '600' },
-  taskList: { gap: 8 },
-  taskRow: {
-    flexDirection: 'row',
+  tasksMenuBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.16)',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    borderRadius: 12,
+    justifyContent: 'center',
+  },
+  taskList: { gap: 10 },
+  taskCardWrap: {
+    position: 'relative',
+    zIndex: 1,
+  },
+  taskCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    overflow: 'hidden',
+    flexDirection: 'row',
+    minHeight: 56,
+  },
+  taskCardActive: {},
+  taskCardDone: {
+    opacity: 0.72,
+  },
+  taskAccent: {
+    width: 6,
+    backgroundColor: 'transparent',
+  },
+  taskAccentOn: {
+    backgroundColor: '#1A1A1A',
+  },
+  taskCardInner: {
+    flex: 1,
     paddingVertical: 12,
     paddingHorizontal: 12,
+    gap: 8,
+  },
+  taskMainRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-  },
-  taskRowActive: {
-    borderColor: 'rgba(255,255,255,0.55)',
-    backgroundColor: 'rgba(255,255,255,0.2)',
-  },
-  taskRowDone: {
-    opacity: 0.65,
   },
   checkHit: { padding: 2 },
   check: {
     width: 22,
     height: 22,
-    borderRadius: 6,
+    borderRadius: 11,
     borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.75)',
+    borderColor: '#D0D0D0',
+    backgroundColor: '#E8E8E8',
     alignItems: 'center',
     justifyContent: 'center',
   },
   checkOn: {
-    backgroundColor: '#fff',
-    borderColor: '#fff',
+    backgroundColor: '#BA4949',
+    borderColor: '#BA4949',
   },
-  checkMark: { fontSize: 12, fontWeight: '800' },
-  taskBody: { flex: 1, gap: 2 },
-  taskTitle: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  taskTitle: {
+    flex: 1,
+    minWidth: 0,
+    color: '#333',
+    fontSize: 15,
+    fontWeight: '700',
+  },
   taskTitleDone: {
     textDecorationLine: 'line-through',
-    color: 'rgba(255,255,255,0.7)',
+    color: '#999',
   },
-  taskPomos: { color: 'rgba(255,255,255,0.7)', fontSize: 12 },
-  estControls: { flexDirection: 'row', gap: 4 },
-  estBtn: {
-    width: 28,
-    height: 28,
+  taskCount: {
+    color: '#9A9A9A',
+    fontSize: 14,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+  },
+  taskMoreBtn: {
+    width: 32,
+    height: 32,
     borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  estBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  addRow: {
-    marginTop: 4,
-    flexDirection: 'row',
-    gap: 8,
+  noteBox: {
+    marginLeft: 34,
+    backgroundColor: '#F4F0D9',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
   },
-  addInput: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.18)',
-    borderRadius: 12,
-    color: '#fff',
+  noteText: {
+    color: '#5C5428',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  taskMenu: {
+    position: 'absolute',
+    right: 8,
+    top: 44,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    minWidth: 120,
+    borderWidth: 1,
+    borderColor: '#E8E8E8',
+    zIndex: 20,
+    ...Platform.select({
+      web: { boxShadow: '0 8px 20px rgba(0,0,0,0.18)' },
+      default: {
+        elevation: 6,
+        shadowColor: '#000',
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 4 },
+      },
+    }),
+  },
+  taskMenuItem: {
     paddingHorizontal: 14,
     paddingVertical: 12,
+  },
+  taskMenuDanger: {
+    color: '#BA4949',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  addTaskBtn: {
+    marginTop: 2,
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(255,255,255,0.35)',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.12)',
+  },
+  addTaskBtnText: {
+    color: 'rgba(255,255,255,0.9)',
+    fontWeight: '700',
     fontSize: 15,
   },
-  addBtn: {
-    backgroundColor: 'rgba(255,255,255,0.22)',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    justifyContent: 'center',
-  },
-  addBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
   finishCard: {
     marginTop: 16,
     borderRadius: 16,

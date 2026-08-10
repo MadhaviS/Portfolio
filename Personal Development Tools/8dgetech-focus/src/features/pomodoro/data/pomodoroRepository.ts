@@ -111,6 +111,19 @@ function orderTasks(
   return [...sorted.filter((t) => !t.done), ...sorted.filter((t) => t.done)];
 }
 
+function normalizeTask(raw: Partial<PomodoroTask> & { id: string }): PomodoroTask {
+  return {
+    id: raw.id,
+    userId: raw.userId ?? authStub.getUserId(),
+    title: typeof raw.title === 'string' && raw.title.trim() ? raw.title : 'New task',
+    note: typeof raw.note === 'string' ? raw.note : '',
+    estimatePomodoros: Math.max(1, Number(raw.estimatePomodoros) || 1),
+    completedPomodoros: Math.max(0, Number(raw.completedPomodoros) || 0),
+    done: Boolean(raw.done),
+    createdAt: raw.createdAt ?? new Date().toISOString(),
+  };
+}
+
 function loadWorkspace(userId: string): void {
   migrateUserKeys(userId);
   const keys = keysFor(userId);
@@ -119,7 +132,7 @@ function loadWorkspace(userId: string): void {
   >(keys.settings, null);
   settings = normalizeSettings(storedSettings);
   sessions = readJson<PomodoroSession[]>(keys.sessions, []);
-  tasks = readJson<PomodoroTask[]>(keys.tasks, []);
+  tasks = readJson<PomodoroTask[]>(keys.tasks, []).map(normalizeTask);
   activeTaskId = readJson<string | null>(keys.activeTask, null);
   tasks = orderTasks(tasks, settings.moveCompletedToBottom);
 }
@@ -151,10 +164,9 @@ function reassignStoredOwnership(userId: string): void {
     ...s,
     userId,
   }));
-  const nextTasks = readJson<PomodoroTask[]>(keys.tasks, []).map((t) => ({
-    ...t,
-    userId,
-  }));
+  const nextTasks = readJson<PomodoroTask[]>(keys.tasks, []).map((t) =>
+    normalizeTask({ ...t, userId }),
+  );
   writeJson(keys.sessions, nextSessions);
   writeJson(keys.tasks, nextTasks);
 }
@@ -185,10 +197,9 @@ function adoptGuestWorkspaceIfNeeded(userId: string): void {
   const guestSessions = readJson<PomodoroSession[]>(guestKeys.sessions, []).map(
     (s) => ({ ...s, userId }),
   );
-  const guestTasks = readJson<PomodoroTask[]>(guestKeys.tasks, []).map((t) => ({
-    ...t,
-    userId,
-  }));
+  const guestTasks = readJson<PomodoroTask[]>(guestKeys.tasks, []).map((t) =>
+    normalizeTask({ ...t, userId }),
+  );
   const guestSettings = readJson<PomodoroSettings | null>(guestKeys.settings, null);
   const guestActive = readJson<string | null>(guestKeys.activeTask, null);
 
@@ -392,12 +403,17 @@ export const pomodoroRepository = {
     persist();
   },
 
-  addTask(title: string, estimatePomodoros = 1): PomodoroTask {
+  addTask(
+    title: string,
+    estimatePomodoros = 1,
+    note = '',
+  ): PomodoroTask {
     ensureBound();
     const task: PomodoroTask = {
       id: createId('task'),
       userId: authStub.getUserId(),
       title: title.trim() || 'New task',
+      note: note.trim(),
       estimatePomodoros: Math.max(1, estimatePomodoros),
       completedPomodoros: 0,
       done: false,
@@ -414,7 +430,7 @@ export const pomodoroRepository = {
     patch: Partial<
       Pick<
         PomodoroTask,
-        'title' | 'estimatePomodoros' | 'completedPomodoros' | 'done'
+        'title' | 'note' | 'estimatePomodoros' | 'completedPomodoros' | 'done'
       >
     >,
   ): PomodoroTask | null {
@@ -424,6 +440,9 @@ export const pomodoroRepository = {
     Object.assign(found, patch);
     if (typeof patch.estimatePomodoros === 'number') {
       found.estimatePomodoros = Math.max(1, patch.estimatePomodoros);
+    }
+    if (typeof patch.note === 'string') {
+      found.note = patch.note;
     }
     tasks = orderTasks(tasks, settings.moveCompletedToBottom);
     persist();

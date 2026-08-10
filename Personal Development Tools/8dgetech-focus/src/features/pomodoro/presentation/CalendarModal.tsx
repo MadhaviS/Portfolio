@@ -20,6 +20,7 @@ import {
   formatMinutesShort,
   formatDayHeading,
   phaseLabel,
+  PHASE_THEME,
   sessionDurationLabel,
   type CalendarCell,
   type DayLog,
@@ -32,9 +33,9 @@ const NAVY = '#1B2A4A';
 const NAVY_MUTED = '#7A8BB0';
 const NAVY_DIM = '#4A5C80';
 const PINK = '#F06292';
-const FOCUS = '#BA4949';
-const BREAK = '#38858A';
-const LONG = '#397097';
+const FOCUS = PHASE_THEME.focus.bg;
+const BREAK = PHASE_THEME.shortBreak.bg;
+const LONG = PHASE_THEME.longBreak.bg;
 
 const fontBody = Platform.select({
   web: 'Outfit, system-ui, sans-serif',
@@ -249,7 +250,7 @@ export function CalendarModal({ open, onClose }: CalendarModalProps) {
 
           <Pressable
             onPress={onClose}
-            style={[styles.okBtn, { backgroundColor: '#BA4949' }]}
+            style={[styles.okBtn, { backgroundColor: c.primary }]}
           >
             <Text style={styles.okText}>OK</Text>
           </Pressable>

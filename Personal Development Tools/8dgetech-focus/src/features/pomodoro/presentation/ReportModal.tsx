@@ -156,7 +156,7 @@ export function ReportModal({ open, onClose, onOpenCalendar, stats }: ReportModa
                           {
                             height: h,
                             backgroundColor:
-                              d.minutes > 0 ? '#BA4949' : c.border,
+                              d.minutes > 0 ? c.primary : c.border,
                             opacity: d.minutes > 0 ? 1 : 0.35,
                           },
                         ]}
@@ -191,7 +191,7 @@ export function ReportModal({ open, onClose, onOpenCalendar, stats }: ReportModa
 
           <Pressable
             onPress={onClose}
-            style={[styles.okBtn, { backgroundColor: '#BA4949' }]}
+            style={[styles.okBtn, { backgroundColor: c.primary }]}
           >
             <Text style={styles.okText}>OK</Text>
           </Pressable>

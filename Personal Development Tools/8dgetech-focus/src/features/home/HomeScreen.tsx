@@ -30,7 +30,6 @@ import {
   IconTomatoClock,
 } from '../../core/theme/LineIcons';
 
-const CORAL = '#FF6B5A';
 const DOODLE_BG_LIGHT = require('../../../assets/landing-doodles-bg-light.png');
 const DOODLE_BG_DARK = require('../../../assets/landing-doodles-bg-dark.png');
 
@@ -80,7 +79,7 @@ export function HomeScreen() {
   const isLight = resolved === 'light';
   const ink = isLight ? '#1A1C20' : c.onSurface;
   const inkSoft = isLight ? '#6B6661' : c.onSurfaceMuted;
-  const coral = isLight ? CORAL : c.primary;
+  const coral = c.primary;
   const narrow = width < 700;
   const short = height < 720;
   const tiny = height < 600 || width < 360;
