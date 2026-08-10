@@ -1,5 +1,39 @@
 export type PomodoroPhase = 'focus' | 'shortBreak' | 'longBreak';
 
+export type AlarmSoundId =
+  | 'none'
+  | 'kitchen'
+  | 'bell'
+  | 'bird'
+  | 'digital'
+  | 'wood'
+  | 'alarmClock';
+
+export type FocusSoundId =
+  | 'none'
+  | 'tickingFast'
+  | 'tickingSlow'
+  | 'whiteNoise'
+  | 'brownNoise';
+
+export const ALARM_SOUND_OPTIONS: { id: AlarmSoundId; label: string }[] = [
+  { id: 'none', label: 'None' },
+  { id: 'kitchen', label: 'Kitchen' },
+  { id: 'bell', label: 'Bell' },
+  { id: 'bird', label: 'Bird' },
+  { id: 'digital', label: 'Digital' },
+  { id: 'wood', label: 'Wood' },
+  { id: 'alarmClock', label: 'Alarm Clock' },
+];
+
+export const FOCUS_SOUND_OPTIONS: { id: FocusSoundId; label: string }[] = [
+  { id: 'none', label: 'None' },
+  { id: 'tickingFast', label: 'Ticking Fast' },
+  { id: 'tickingSlow', label: 'Ticking Slow' },
+  { id: 'whiteNoise', label: 'White Noise' },
+  { id: 'brownNoise', label: 'Brown Noise' },
+];
+
 export type PomodoroSettings = {
   focusMinutes: number;
   shortBreakMinutes: number;
@@ -13,6 +47,11 @@ export type PomodoroSettings = {
   autoCheckTasks: boolean;
   /** Keep completed tasks at the bottom of the list. */
   moveCompletedToBottom: boolean;
+  alarmSound: AlarmSoundId;
+  alarmVolume: number;
+  alarmRepeat: number;
+  focusSound: FocusSoundId;
+  focusVolume: number;
 };
 
 export type PomodoroSession = {
@@ -79,7 +118,30 @@ export const DEFAULT_SETTINGS: PomodoroSettings = {
   autoStartPomodoros: false,
   autoCheckTasks: false,
   moveCompletedToBottom: true,
+  alarmSound: 'wood',
+  alarmVolume: 50,
+  alarmRepeat: 1,
+  focusSound: 'tickingFast',
+  focusVolume: 50,
 };
+
+function clampInt(value: unknown, min: number, max: number, fallback: number): number {
+  const n = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(n)));
+}
+
+function asAlarmSound(value: unknown): AlarmSoundId {
+  return ALARM_SOUND_OPTIONS.some((o) => o.id === value)
+    ? (value as AlarmSoundId)
+    : DEFAULT_SETTINGS.alarmSound;
+}
+
+function asFocusSound(value: unknown): FocusSoundId {
+  return FOCUS_SOUND_OPTIONS.some((o) => o.id === value)
+    ? (value as FocusSoundId)
+    : DEFAULT_SETTINGS.focusSound;
+}
 
 /** Normalize stored settings (incl. legacy `autoContinue`). */
 export function normalizeSettings(
@@ -90,6 +152,11 @@ export function normalizeSettings(
   const merged: PomodoroSettings = {
     ...DEFAULT_SETTINGS,
     ...rest,
+    alarmSound: asAlarmSound(rest.alarmSound ?? DEFAULT_SETTINGS.alarmSound),
+    alarmVolume: clampInt(rest.alarmVolume ?? DEFAULT_SETTINGS.alarmVolume, 0, 100, 50),
+    alarmRepeat: clampInt(rest.alarmRepeat ?? DEFAULT_SETTINGS.alarmRepeat, 0, 60, 1),
+    focusSound: asFocusSound(rest.focusSound ?? DEFAULT_SETTINGS.focusSound),
+    focusVolume: clampInt(rest.focusVolume ?? DEFAULT_SETTINGS.focusVolume, 0, 100, 50),
   };
   if (
     autoContinue !== undefined &&

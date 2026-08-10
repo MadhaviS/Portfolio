@@ -14,7 +14,9 @@ import {
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import {
+  ALARM_SOUND_OPTIONS,
   DEFAULT_SETTINGS,
+  FOCUS_SOUND_OPTIONS,
   PHASE_THEME,
   formatFinishClock,
   formatMinutesShort,
@@ -31,6 +33,7 @@ import { CalendarModal } from './CalendarModal';
 import { useTheme } from '../../../core/theme/ThemeProvider';
 import { AuthAccountButton } from '../../../core/auth/AuthAccountButton';
 import { IconGear, IconMoon, IconSun } from '../../../core/theme/LineIcons';
+import { previewSound } from '../data/pomodoroAudio';
 
 const MODES: PomodoroPhase[] = ['focus', 'shortBreak', 'longBreak'];
 const DOODLE_BG_LIGHT = require('../../../../assets/landing-doodles-bg-light.png');
@@ -519,6 +522,39 @@ function SettingsModal({
               }
             />
 
+            <View style={[styles.modalDivider, { backgroundColor: c.border }]} />
+
+            <View style={styles.sectionHeader}>
+              <Feather name="volume-2" size={15} color={c.onSurfaceMuted} />
+              <Text style={[styles.sectionTitle, { color: c.onSurfaceMuted }]}>
+                SOUND
+              </Text>
+            </View>
+
+            <SoundBlock
+              kind="alarm"
+              label="Alarm Sound"
+              options={ALARM_SOUND_OPTIONS}
+              selectedId={settings.alarmSound}
+              volume={settings.alarmVolume}
+              disabled={disabled}
+              onSelect={(alarmSound) => onChange({ alarmSound })}
+              onVolumeChange={(alarmVolume) => onChange({ alarmVolume })}
+              repeat={settings.alarmRepeat}
+              onRepeatChange={(alarmRepeat) => onChange({ alarmRepeat })}
+            />
+
+            <SoundBlock
+              kind="focus"
+              label="Focus Sound"
+              options={FOCUS_SOUND_OPTIONS}
+              selectedId={settings.focusSound}
+              volume={settings.focusVolume}
+              disabled={disabled}
+              onSelect={(focusSound) => onChange({ focusSound })}
+              onVolumeChange={(focusVolume) => onChange({ focusVolume })}
+            />
+
             <Pressable
               disabled={disabled}
               onPress={() => onChange({ ...DEFAULT_SETTINGS })}
@@ -534,7 +570,7 @@ function SettingsModal({
                 Reset to default
               </Text>
               <Text style={[styles.resetHint, { color: c.onSurfaceMuted }]}>
-                25 · 5 · 15 · breaks auto · tasks manual
+                25 · 5 · 15 · wood · ticking
               </Text>
             </Pressable>
           </ScrollView>
@@ -686,6 +722,260 @@ function MinuteInput({
           },
         ]}
       />
+    </View>
+  );
+}
+
+function SoundBlock<T extends string>({
+  kind,
+  label,
+  options,
+  selectedId,
+  volume,
+  disabled,
+  onSelect,
+  onVolumeChange,
+  repeat,
+  onRepeatChange,
+}: {
+  kind: 'alarm' | 'focus';
+  label: string;
+  options: { id: T; label: string }[];
+  selectedId: T;
+  volume: number;
+  disabled: boolean;
+  onSelect: (id: T) => void;
+  onVolumeChange: (volume: number) => void;
+  repeat?: number;
+  onRepeatChange?: (repeat: number) => void;
+}) {
+  const { theme } = useTheme();
+  const c = theme.colors;
+  const selectedLabel =
+    options.find((o) => o.id === selectedId)?.label ?? selectedId;
+  const volumePreviewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const playPreview = (id: T, nextVolume = volume) => {
+    void previewSound(kind, id as never, nextVolume);
+  };
+
+  const handleVolumeChange = (next: number) => {
+    onVolumeChange(next);
+    if (volumePreviewTimer.current) clearTimeout(volumePreviewTimer.current);
+    volumePreviewTimer.current = setTimeout(() => {
+      playPreview(selectedId, next);
+    }, 120);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (volumePreviewTimer.current) clearTimeout(volumePreviewTimer.current);
+    };
+  }, []);
+
+  return (
+    <View style={[styles.soundBlock, { opacity: disabled ? 0.5 : 1 }]}>
+      <View style={styles.soundTopRow}>
+        <Text style={[styles.soundLabel, { color: c.onSurface }]}>{label}</Text>
+        <SoundSelect
+          label={selectedLabel}
+          options={options}
+          selectedId={selectedId}
+          disabled={disabled}
+          onSelect={(id) => {
+            onSelect(id);
+            playPreview(id);
+          }}
+        />
+      </View>
+      <VolumeSlider
+        value={volume}
+        disabled={disabled}
+        onChange={handleVolumeChange}
+      />
+      {onRepeatChange != null && repeat != null ? (
+        <View style={styles.repeatRow}>
+          <Text style={[styles.repeatLabel, { color: c.onSurfaceMuted }]}>
+            repeat
+          </Text>
+          <TextInput
+            value={String(repeat)}
+            editable={!disabled}
+            keyboardType="number-pad"
+            selectTextOnFocus
+            onChangeText={(text) => {
+              const digits = text.replace(/[^\d]/g, '');
+              if (digits === '') {
+                onRepeatChange(0);
+                return;
+              }
+              onRepeatChange(Math.min(60, Math.max(0, Number(digits))));
+            }}
+            style={[
+              styles.repeatInput,
+              {
+                color: c.onSurface,
+                backgroundColor: c.backgroundAlt,
+                borderColor: c.border,
+              },
+            ]}
+            accessibilityLabel="Alarm repeat count"
+          />
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function SoundSelect<T extends string>({
+  label,
+  options,
+  selectedId,
+  disabled,
+  onSelect,
+}: {
+  label: string;
+  options: { id: T; label: string }[];
+  selectedId: T;
+  disabled: boolean;
+  onSelect: (id: T) => void;
+}) {
+  const { theme } = useTheme();
+  const c = theme.colors;
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <Pressable
+        disabled={disabled}
+        onPress={() => setOpen(true)}
+        style={[
+          styles.soundSelect,
+          { backgroundColor: c.backgroundAlt, borderColor: c.border },
+        ]}
+        accessibilityRole="button"
+        accessibilityLabel={`Sound: ${label}`}
+      >
+        <Text style={[styles.soundSelectText, { color: c.onSurface }]}>
+          {label}
+        </Text>
+        <Feather name="chevron-down" size={16} color={c.onSurfaceMuted} />
+      </Pressable>
+
+      <Modal
+        visible={open}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setOpen(false)}
+      >
+        <View style={styles.soundPickerOverlay}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setOpen(false)}
+          />
+          <View
+            style={[
+              styles.soundPickerCard,
+              { backgroundColor: c.surface, borderColor: c.border },
+            ]}
+          >
+            {options.map((option) => {
+              const active = option.id === selectedId;
+              return (
+                <Pressable
+                  key={option.id}
+                  onPress={() => {
+                    onSelect(option.id);
+                    setOpen(false);
+                  }}
+                  style={[
+                    styles.soundPickerItem,
+                    active && { backgroundColor: c.backgroundAlt },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.soundPickerItemText,
+                      {
+                        color: c.onSurface,
+                        fontWeight: active ? '700' : '500',
+                      },
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                  {active ? (
+                    <Feather name="check" size={16} color={c.primary} />
+                  ) : null}
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      </Modal>
+    </>
+  );
+}
+
+function VolumeSlider({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: number;
+  disabled: boolean;
+  onChange: (next: number) => void;
+}) {
+  const { theme } = useTheme();
+  const c = theme.colors;
+  const trackRef = useRef<View>(null);
+  const trackWidthRef = useRef(1);
+
+  const setFromX = (locationX: number) => {
+    const width = Math.max(1, trackWidthRef.current);
+    const next = Math.round(Math.max(0, Math.min(100, (locationX / width) * 100)));
+    onChange(next);
+  };
+
+  return (
+    <View style={styles.volumeRow}>
+      <Text style={[styles.volumeValue, { color: c.onSurfaceMuted }]}>
+        {value}
+      </Text>
+      <View
+        ref={trackRef}
+        collapsable={false}
+        onLayout={(e) => {
+          trackWidthRef.current = e.nativeEvent.layout.width;
+        }}
+        onStartShouldSetResponder={() => !disabled}
+        onMoveShouldSetResponder={() => !disabled}
+        onResponderGrant={(e) => setFromX(e.nativeEvent.locationX)}
+        onResponderMove={(e) => setFromX(e.nativeEvent.locationX)}
+        style={[styles.volumeTrack, { backgroundColor: c.border }]}
+        accessibilityRole="adjustable"
+        accessibilityValue={{ min: 0, max: 100, now: value }}
+      >
+        <View
+          style={[
+            styles.volumeFill,
+            {
+              width: `${value}%`,
+              backgroundColor: c.onSurfaceMuted,
+            },
+          ]}
+        />
+        <View
+          style={[
+            styles.volumeThumb,
+            {
+              left: `${value}%`,
+              backgroundColor: c.surface,
+              borderColor: c.border,
+            },
+          ]}
+        />
+      </View>
     </View>
   );
 }
@@ -1283,6 +1573,126 @@ const styles = StyleSheet.create({
   intervalInput: {
     width: 72,
     flexGrow: 0,
+  },
+  soundBlock: {
+    gap: 12,
+    paddingVertical: 10,
+  },
+  soundTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  soundLabel: {
+    fontSize: 15,
+    fontWeight: '700',
+    flexShrink: 1,
+  },
+  soundSelect: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    minWidth: 132,
+    justifyContent: 'space-between',
+  },
+  soundSelectText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  soundPickerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  soundPickerCard: {
+    width: '100%',
+    maxWidth: 320,
+    borderRadius: 12,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  soundPickerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  soundPickerItemText: {
+    fontSize: 15,
+  },
+  volumeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingLeft: 2,
+  },
+  volumeValue: {
+    width: 28,
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'right',
+  },
+  volumeTrack: {
+    flex: 1,
+    height: 6,
+    borderRadius: 999,
+    justifyContent: 'center',
+  },
+  volumeFill: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    borderRadius: 999,
+    opacity: 0.45,
+  },
+  volumeThumb: {
+    position: 'absolute',
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    marginLeft: -9,
+    borderWidth: 1,
+    ...Platform.select({
+      web: {
+        boxShadow: '0 1px 4px rgba(0,0,0,0.18)',
+      } as object,
+      default: {
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOpacity: 0.15,
+        shadowRadius: 3,
+        shadowOffset: { width: 0, height: 1 },
+      },
+    }),
+  },
+  repeatRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 10,
+  },
+  repeatLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  repeatInput: {
+    width: 48,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    textAlign: 'center',
+    fontSize: 14,
+    fontWeight: '600',
   },
   toggleRow: {
     flexDirection: 'row',

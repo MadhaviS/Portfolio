@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { authStub } from '../../../core/auth/authStub';
 import { useAuth } from '../../../core/auth/AuthProvider';
+import {
+  alarmOptsFromSettings,
+  focusOptsFromSettings,
+  playAlarmSound,
+  stopAlarmSound,
+  stopFocusSound,
+  syncFocusSound,
+} from '../data/pomodoroAudio';
 import { pomodoroRepository } from '../data/pomodoroRepository';
 import {
   clampMinutes,
@@ -76,6 +84,8 @@ export function usePomodoroTimer() {
     endsAtRef.current = null;
     finishingRef.current = false;
     setRunning(false);
+    void stopFocusSound();
+    void stopAlarmSound();
 
     const nextSettings = pomodoroRepository.getSettings();
     setSettings(nextSettings);
@@ -126,6 +136,7 @@ export function usePomodoroTimer() {
     finishingRef.current = true;
 
     const currentPhase = phaseRef.current;
+    const cfg = settingsRef.current;
 
     if (sessionIdRef.current) {
       pomodoroRepository.completeSession(sessionIdRef.current, true);
@@ -134,22 +145,19 @@ export function usePomodoroTimer() {
     endsAtRef.current = null;
     clearTick();
     setRunning(false);
+    void stopFocusSound();
+    void playAlarmSound(alarmOptsFromSettings(cfg));
 
     if (currentPhase === 'focus') {
       pomodoroRepository.incrementActiveTaskPomodoro();
     }
 
     const focusBefore = completedFocusRef.current;
-    const upcoming = nextPhase(
-      currentPhase,
-      focusBefore,
-      settingsRef.current,
-    );
+    const upcoming = nextPhase(currentPhase, focusBefore, cfg);
 
     refreshInsight();
     applyPhase(upcoming);
 
-    const cfg = settingsRef.current;
     const shouldAuto =
       (currentPhase === 'focus' && cfg.autoStartBreaks) ||
       ((currentPhase === 'shortBreak' || currentPhase === 'longBreak') &&
@@ -184,6 +192,7 @@ export function usePomodoroTimer() {
     }
     endsAtRef.current = null;
     setRunning(false);
+    void stopFocusSound();
   }, []);
 
   const selectPhase = useCallback(
@@ -194,6 +203,8 @@ export function usePomodoroTimer() {
         sessionIdRef.current = null;
       }
       endsAtRef.current = null;
+      void stopFocusSound();
+      void stopAlarmSound();
       refreshInsight();
       applyPhase(next);
     },
@@ -206,9 +217,27 @@ export function usePomodoroTimer() {
       sessionIdRef.current = null;
     }
     endsAtRef.current = null;
+    void stopFocusSound();
+    void stopAlarmSound();
     refreshInsight();
     applyPhase(phase);
   }, [applyPhase, phase, refreshInsight]);
+
+  useEffect(() => {
+    void syncFocusSound(focusOptsFromSettings(settings, running, phase));
+  }, [
+    running,
+    phase,
+    settings.focusSound,
+    settings.focusVolume,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      void stopFocusSound();
+      void stopAlarmSound();
+    };
+  }, []);
 
   useEffect(() => {
     if (!running || endsAtRef.current == null) {
