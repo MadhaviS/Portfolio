@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  ImageBackground,
+  Image,
   Modal,
   Platform,
   Pressable,
@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Feather from '@expo/vector-icons/Feather';
 import {
   ALARM_SOUND_OPTIONS,
@@ -31,30 +32,29 @@ import { useHowItWorksTour } from './useHowItWorksTour';
 import { ReportModal } from './ReportModal';
 import { CalendarModal } from './CalendarModal';
 import { AddTaskModal } from './AddTaskModal';
+import { RitualRing } from './RitualRing';
+import { PhaseIconGlyph } from './PhaseIcon';
 import { useTheme } from '../../../core/theme/ThemeProvider';
 import { AuthAccountButton } from '../../../core/auth/AuthAccountButton';
 import { IconGear, IconMoon, IconSun } from '../../../core/theme/LineIcons';
 import { previewSound } from '../data/pomodoroAudio';
 
 const MODES: PomodoroPhase[] = ['focus', 'shortBreak', 'longBreak'];
-const DOODLE_BG = {
-  focus: {
-    light: require('../../../../assets/pomodoro-doodles-bg-focus-light.jpg'),
-    dark: require('../../../../assets/pomodoro-doodles-bg-focus-dark.jpg'),
-  },
-  shortBreak: {
-    light: require('../../../../assets/pomodoro-doodles-bg-short-break.jpg'),
-    dark: require('../../../../assets/pomodoro-doodles-bg-short-break-dark.jpg'),
-  },
-  longBreak: {
-    light: require('../../../../assets/pomodoro-doodles-bg-long-break.jpg'),
-    dark: require('../../../../assets/pomodoro-doodles-bg-long-break-dark.jpg'),
-  },
-} as const;
 
-function doodleForPhase(phase: PomodoroPhase, isLight: boolean) {
-  return DOODLE_BG[phase][isLight ? 'light' : 'dark'];
-}
+const PHASE_RITUAL_LABEL: Record<PomodoroPhase, string> = {
+  focus: 'FOCUS',
+  shortBreak: 'SHORT BREAK',
+  longBreak: 'LONG BREAK',
+};
+
+const PHASE_TAB_LABEL: Record<PomodoroPhase, string> = {
+  focus: 'Focus',
+  shortBreak: 'Short',
+  longBreak: 'Long',
+};
+
+/** Original doodle art as one transparent overlay; phase fill from PHASE_THEME. */
+const DOODLE_FRAME = require('../../../../assets/pomodoro-doodles-frame.png');
 
 export function PomodoroScreen() {
   const {
@@ -83,55 +83,31 @@ export function PomodoroScreen() {
   } = usePomodoro();
 
   const router = useRouter();
-  const { theme: appTheme, resolved, toggleLightDark } = useTheme();
+  const insets = useSafeAreaInsets();
+  const { width: winW } = useWindowDimensions();
+  const { resolved, toggleLightDark } = useTheme();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<PomodoroTask | null>(null);
+  const [todayOpen, setTodayOpen] = useState(false);
   const { open: tourOpen, complete: completeTour } = useHowItWorksTour();
   const theme = PHASE_THEME[phase];
   const isLight = resolved === 'light';
-  const c = appTheme.colors;
-  /**
-   * Light: darker phase page (doodles visible) + lighter frosted cards.
-   * Dark: solid phase-colored cards on soft dark wash.
-   */
   const pageBg = isLight ? theme.pageLight : theme.pageDark;
-  const panelBg = isLight ? theme.panelLight : theme.bg;
-  const chromeInk = isLight ? '#FFFFFF' : c.onSurface;
-  const chromeMuted = isLight
-    ? 'rgba(255,255,255,0.78)'
-    : c.onSurfaceMuted;
-  const chromeBtnBg = isLight
-    ? 'rgba(255,255,255,0.16)'
-    : 'rgba(255,248,242,0.08)';
-  const chromeBorder = isLight
-    ? 'rgba(255,255,255,0.28)'
-    : c.border;
-  const brandColor = '#FFFFFF';
-  const onPanel = isLight ? '#1A1C20' : '#FFFFFF';
-  const onPanelMuted = isLight ? '#5C5854' : 'rgba(255,255,255,0.78)';
-  const tabActiveBg = isLight ? theme.bg : 'rgba(0,0,0,0.22)';
-  const tabText = isLight ? '#3D3A36' : '#FFFFFF';
-  const progressTrack = isLight ? 'rgba(26,28,32,0.1)' : 'rgba(0,0,0,0.18)';
-  const progressFill = isLight ? theme.bg : 'rgba(255,255,255,0.9)';
-  const tasksRule = isLight ? 'rgba(26,28,32,0.12)' : 'rgba(255,255,255,0.9)';
-  const addTaskBorder = isLight ? `${theme.bg}66` : 'rgba(255,255,255,0.55)';
-  const addTaskBg = isLight ? `${theme.bg}14` : 'rgba(255,255,255,0.12)';
-  const addTaskText = isLight ? theme.bg : '#FFFFFF';
-  const panelShadow = isLight
-    ? Platform.select({
-        web: { boxShadow: '0 14px 34px rgba(0,0,0,0.18)' } as object,
-        default: {
-          elevation: 5,
-          shadowColor: '#000',
-          shadowOpacity: 0.18,
-          shadowRadius: 16,
-          shadowOffset: { width: 0, height: 6 },
-        },
-      })
-    : null;
+  const ink = '#FFFFFF';
+  const inkMuted = 'rgba(255,255,255,0.72)';
+  const chromeBtnBg = 'rgba(255,255,255,0.12)';
+  const chromeBorder = 'rgba(255,255,255,0.22)';
+  const ringSize = Math.min(360, Math.max(300, winW - 48));
+  /** Light: bright arc on phase wash. Dark: phase accent on deep page. */
+  const ringProgress = isLight ? '#FFFFFF' : theme.accent;
+  const ringTrack = isLight
+    ? 'rgba(255,255,255,0.34)'
+    : 'rgba(255,255,255,0.16)';
+  const ringGlow = isLight ? 'rgba(255,255,255,0.5)' : theme.bg;
+  const openTaskCount = (tasks ?? []).filter((t) => !t.done).length;
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return;
@@ -147,10 +123,14 @@ export function PomodoroScreen() {
 
   const chrome = (
     <>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
+      <View
+        style={[
+          styles.stage,
+          {
+            paddingTop: Math.max(insets.top, 16) + 8,
+            paddingBottom: Math.max(insets.bottom, 12),
+          },
+        ]}
       >
         <View style={styles.topBar}>
           <Pressable
@@ -161,7 +141,9 @@ export function PomodoroScreen() {
             hitSlop={8}
             accessibilityLabel="Back to home"
           >
-            <Text style={[styles.brand, { color: brandColor }]}>Pomodoro</Text>
+            <Text style={[styles.brand, { color: ink }]}>
+              8dgeTech
+            </Text>
           </Pressable>
           <View style={styles.topActions}>
             {running || isPartial ? (
@@ -170,7 +152,7 @@ export function PomodoroScreen() {
                   minimize();
                   router.navigate('/');
                 }}
-                accessibilityLabel="Pop timer out. On desktop Chrome it floats over other windows. Drag to × to close."
+                accessibilityLabel="Pop timer out"
                 style={({ pressed }) => [
                   styles.iconAction,
                   {
@@ -180,7 +162,7 @@ export function PomodoroScreen() {
                   },
                 ]}
               >
-                <Feather name="minimize-2" size={16} color={chromeInk} />
+                <Feather name="minimize-2" size={16} color={ink} />
               </Pressable>
             ) : null}
             <Pressable
@@ -195,10 +177,10 @@ export function PomodoroScreen() {
                 },
               ]}
             >
-              <IconGear color={chromeInk} size={17} />
+              <IconGear color={ink} size={17} />
             </Pressable>
             <AuthAccountButton
-              color={chromeInk}
+              color={ink}
               iconSize={18}
               onOpenReport={() => setReportOpen(true)}
               style={({ pressed }) => [
@@ -223,185 +205,252 @@ export function PomodoroScreen() {
               ]}
             >
               {isLight ? (
-                <IconSun color={chromeInk} size={16} />
+                <IconSun color={ink} size={16} />
               ) : (
-                <IconMoon color={chromeInk} size={16} />
+                <IconMoon color={ink} size={16} />
               )}
             </Pressable>
           </View>
         </View>
 
-        <View
-          style={[
-            styles.timerCard,
-            { backgroundColor: panelBg },
-            panelShadow,
-          ]}
-        >
-          <View style={styles.modeTabs}>
-            {MODES.map((mode) => {
-              const active = mode === phase;
-              return (
-                <Pressable
-                  key={mode}
-                  onPress={() => selectPhase(mode)}
+        <View style={styles.phaseTabs}>
+          {MODES.map((mode) => {
+            const active = mode === phase;
+            return (
+              <Pressable
+                key={mode}
+                onPress={() => selectPhase(mode)}
+                style={[
+                  styles.phaseTab,
+                  active && styles.phaseTabActive,
+                ]}
+                accessibilityLabel={PHASE_THEME[mode].label}
+              >
+                <PhaseIconGlyph
+                  phase={mode}
+                  color={active ? ink : inkMuted}
+                  size={active ? 20 : 17}
+                />
+                <Text
                   style={[
-                    styles.modeTab,
-                    active && {
-                      backgroundColor: tabActiveBg,
+                    styles.phaseTabText,
+                    {
+                      color: active ? ink : inkMuted,
+                      fontWeight: active ? '700' : '500',
                     },
                   ]}
                 >
-                  <Text
-                    style={[
-                      styles.modeTabText,
-                      {
-                        color:
-                          active && isLight ? '#FFFFFF' : tabText,
-                      },
-                    ]}
-                  >
-                    {PHASE_THEME[mode].label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-
-          <Text style={[styles.timerText, { color: onPanel }]}>
-            {formatTimer(remaining)}
-          </Text>
-
-          <View style={[styles.progressTrack, { backgroundColor: progressTrack }]}>
-            <View
-              style={[
-                styles.progressFill,
-                {
-                  width: `${progress * 100}%`,
-                  backgroundColor: progressFill,
-                },
-              ]}
-            />
-          </View>
-
-          {activeTask && !activeTask.done ? (
-            <Text style={[styles.workingOn, { color: onPanelMuted }]} numberOfLines={1}>
-              #{tasks.findIndex((t) => t.id === activeTask.id) + 1}{' '}
-              {activeTask.title}
-            </Text>
-          ) : (
-            <Text style={[styles.workingOn, { color: onPanelMuted }]}>
-              Time to focus!
-            </Text>
-          )}
-
-          <Pressable
-            onPress={running ? pause : start}
-            style={({ pressed }) => [
-              styles.startBtn,
-              { opacity: pressed ? 0.92 : 1 },
-            ]}
-          >
-            <Text style={[styles.startLabel, { color: theme.bg }]}>
-              {running ? 'PAUSE' : isPartial ? 'RESUME' : 'START'}
-            </Text>
-          </Pressable>
-
-          <Pressable onPress={reset} style={styles.skipLink}>
-            <Text style={[styles.skipText, { color: onPanelMuted }]}>Reset</Text>
-          </Pressable>
+                  {PHASE_TAB_LABEL[mode]}
+                </Text>
+                {active ? (
+                  <View style={[styles.phaseUnderline, { backgroundColor: ink }]} />
+                ) : (
+                  <View style={styles.phaseUnderlineSpacer} />
+                )}
+              </Pressable>
+            );
+          })}
         </View>
 
-        <View
-          style={[
-            styles.tasksCard,
-            { backgroundColor: panelBg },
-            panelShadow,
+        <View style={styles.ritualCenter}>
+          <RitualRing
+            progress={progress}
+            size={ringSize}
+            stroke={isLight ? 10 : 9}
+            trackColor={ringTrack}
+            progressColor={ringProgress}
+            glowColor={ringGlow}
+            breathing={running}
+          >
+            <PhaseIconGlyph phase={phase} color={ink} size={28} />
+            <Text
+              style={[
+                styles.timerText,
+                { color: ink, fontSize: ringSize * 0.175 },
+              ]}
+            >
+              {formatTimer(remaining)}
+            </Text>
+            <Text style={[styles.ritualPhase, { color: inkMuted }]}>
+              {PHASE_RITUAL_LABEL[phase]}
+            </Text>
+            <View style={styles.ringControls}>
+              <Pressable
+                onPress={reset}
+                hitSlop={10}
+                accessibilityLabel="Reset"
+                style={({ pressed }) => [
+                  styles.ringControlBtn,
+                  { opacity: pressed ? 0.7 : 1 },
+                ]}
+              >
+                <Feather name="rotate-ccw" size={22} color={ink} />
+              </Pressable>
+              <Pressable
+                onPress={running ? pause : start}
+                hitSlop={10}
+                accessibilityLabel={
+                  running ? 'Pause' : isPartial ? 'Resume' : 'Start'
+                }
+                style={({ pressed }) => [
+                  styles.ringControlBtn,
+                  styles.ringControlPlay,
+                  { opacity: pressed ? 0.75 : 1 },
+                ]}
+              >
+                <Feather
+                  name={running ? 'pause' : 'play'}
+                  size={28}
+                  color={ink}
+                />
+              </Pressable>
+            </View>
+          </RitualRing>
+
+          <Text style={[styles.nowLabel, { color: inkMuted }]} numberOfLines={1}>
+            {activeTask && !activeTask.done
+              ? `Now: ${activeTask.title}`
+              : 'Time to focus'}
+          </Text>
+
+          <View style={styles.finishBlock}>
+            <Text style={[styles.finishLabel, { color: inkMuted }]}>
+              Est. finish
+            </Text>
+            <Text style={[styles.finishValue, { color: ink }]}>
+              {formatFinishClock(finishAt)}
+            </Text>
+            <Text style={[styles.finishHint, { color: inkMuted }]}>
+              {formatMinutesShort(stats.focusMinutesToday)} focused today
+            </Text>
+          </View>
+        </View>
+
+        <Pressable
+          onPress={() => setTodayOpen(true)}
+          style={({ pressed }) => [
+            styles.todayPeek,
+            {
+              backgroundColor: 'rgba(12,14,18,0.55)',
+              borderColor: 'rgba(255,255,255,0.18)',
+              opacity: pressed ? 0.92 : 1,
+            },
           ]}
+          accessibilityLabel="Open today's tasks"
         >
+          <View style={styles.todayHandle} />
+          <View style={styles.todayPeekRow}>
+            <Text style={[styles.todayPeekTitle, { color: ink }]}>
+              Today · {openTaskCount} {openTaskCount === 1 ? 'task' : 'tasks'}
+            </Text>
+            <Feather name="chevron-up" size={18} color={inkMuted} />
+          </View>
+          {activeTask && !activeTask.done ? (
+            <Text
+              style={[styles.todayPeekSub, { color: inkMuted }]}
+              numberOfLines={1}
+            >
+              {activeTask.title}
+            </Text>
+          ) : null}
+        </Pressable>
+      </View>
+
+      <Modal
+        visible={todayOpen}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setTodayOpen(false)}
+      >
+        <View style={styles.todayBackdrop}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setTodayOpen(false)} />
           <View
             style={[
-              styles.tasksHeader,
-              { borderBottomColor: tasksRule },
-            ]}
-          >
-            <Text style={[styles.tasksTitle, { color: onPanel }]}>Tasks</Text>
-            <Pressable
-              accessibilityLabel="Task options"
-              style={[
-                styles.tasksMenuBtn,
-                isLight && styles.tasksMenuBtnLight,
-              ]}
-              hitSlop={6}
-            >
-              <Feather
-                name="more-vertical"
-                size={16}
-                color={isLight ? '#666' : '#fff'}
-              />
-            </Pressable>
-          </View>
-
-          <View style={styles.taskList}>
-            {tasks.map((task) => (
-              <TaskRow
-                key={task.id}
-                task={task}
-                active={task.id === activeTaskId}
-                accent={theme.bg}
-                onSelect={() => selectTask(task.id)}
-                onToggle={() => toggleTaskDone(task.id)}
-                onEdit={() => {
-                  setEditingTask(task);
-                  setTaskModalOpen(true);
-                }}
-              />
-            ))}
-          </View>
-
-          <Pressable
-            onPress={() => {
-              setEditingTask(null);
-              setTaskModalOpen(true);
-            }}
-            style={({ pressed }) => [
-              styles.addTaskBtn,
+              styles.todaySheet,
               {
-                borderColor: addTaskBorder,
-                backgroundColor: addTaskBg,
-                opacity: pressed ? 0.88 : 1,
+                backgroundColor: isLight ? '#F7F4EF' : '#1A1C20',
+                paddingBottom: Math.max(insets.bottom, 16),
+                maxHeight: '78%',
               },
             ]}
           >
-            <Text style={[styles.addTaskBtnText, { color: addTaskText }]}>
-              + Add Task
-            </Text>
-          </Pressable>
-        </View>
+            <View style={[styles.todaySheetHandle, { backgroundColor: isLight ? '#C8C2BA' : '#555' }]} />
+            <View style={styles.todaySheetHeader}>
+              <Text
+                style={[
+                  styles.todaySheetTitle,
+                  {
+                    color: isLight ? '#1A1C20' : '#FFFFFF',
+                  },
+                ]}
+              >
+                Today
+              </Text>
+              <Text
+                style={[
+                  styles.todaySheetMeta,
+                  { color: isLight ? '#6B6560' : 'rgba(255,255,255,0.6)' },
+                ]}
+              >
+                Est. finish {formatFinishClock(finishAt)}
+              </Text>
+            </View>
 
-        <View
-          style={[
-            styles.finishCard,
-            { backgroundColor: panelBg },
-            panelShadow,
-          ]}
-        >
-          <Text style={[styles.finishLabel, { color: onPanelMuted }]}>
-            Est. finish
-          </Text>
-          <Text style={[styles.finishValue, { color: onPanel }]}>
-            {formatFinishClock(finishAt)}
-          </Text>
-          <Text style={[styles.finishHint, { color: onPanelMuted }]}>
-            Based on open task estimates · {formatMinutesShort(stats.focusMinutesToday)}{' '}
-            focused today
-          </Text>
-        </View>
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.todayList}
+            >
+              {(tasks ?? []).map((task) => (
+                <TaskRow
+                  key={task.id}
+                  task={task}
+                  active={task.id === activeTaskId}
+                  accent={theme.bg}
+                  isLight={isLight}
+                  onSelect={() => {
+                    selectTask(task.id);
+                    setTodayOpen(false);
+                  }}
+                  onToggle={() => toggleTaskDone(task.id)}
+                  onEdit={() => {
+                    setEditingTask(task);
+                    setTodayOpen(false);
+                    setTaskModalOpen(true);
+                  }}
+                />
+              ))}
 
-        <Text style={[styles.powered, { color: chromeMuted }]}>
-          powered by 8dgeTech@2026
-        </Text>
-      </ScrollView>
+              <Pressable
+                onPress={() => {
+                  setEditingTask(null);
+                  setTodayOpen(false);
+                  setTaskModalOpen(true);
+                }}
+                style={({ pressed }) => [
+                  styles.addTaskBtn,
+                  {
+                    borderColor: isLight ? `${theme.bg}66` : 'rgba(255,255,255,0.35)',
+                    backgroundColor: isLight ? `${theme.bg}12` : 'rgba(255,255,255,0.06)',
+                    opacity: pressed ? 0.88 : 1,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.addTaskBtnText,
+                    {
+                      color: isLight ? theme.bg : '#FFFFFF',
+                    },
+                  ]}
+                >
+                  + Add Task
+                </Text>
+              </Pressable>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       <SettingsModal
         open={settingsOpen}
@@ -456,14 +505,15 @@ export function PomodoroScreen() {
   );
 
   return (
-    <ImageBackground
-      source={doodleForPhase(phase, isLight)}
-      style={[styles.root, { backgroundColor: pageBg }]}
-      imageStyle={[styles.bgImage, styles.bgImageDoodle]}
-      resizeMode="cover"
-    >
-      {chrome}
-    </ImageBackground>
+    <View style={[styles.root, { backgroundColor: pageBg }]}>
+      <Image
+        source={DOODLE_FRAME}
+        style={[styles.doodleFrame, { opacity: isLight ? 0.78 : 0.62 }]}
+        resizeMode="cover"
+        pointerEvents="none"
+      />
+      <View style={styles.stageLayer}>{chrome}</View>
+    </View>
   );
 }
 
@@ -471,6 +521,7 @@ function TaskRow({
   task,
   active,
   accent,
+  isLight,
   onSelect,
   onToggle,
   onEdit,
@@ -478,71 +529,73 @@ function TaskRow({
   task: PomodoroTask;
   active: boolean;
   accent: string;
+  isLight: boolean;
   onSelect: () => void;
   onToggle: () => void;
   onEdit: () => void;
 }) {
+  const titleColor = isLight ? '#1A1C20' : '#FFFFFF';
+  const muted = isLight ? '#8A847C' : 'rgba(255,255,255,0.5)';
+  const rule = isLight ? 'rgba(26,28,32,0.1)' : 'rgba(255,255,255,0.1)';
+
   return (
-    <View style={styles.taskCardWrap}>
-      <Pressable
-        onPress={onSelect}
-        style={[
-          styles.taskCard,
-          active && styles.taskCardActive,
-          task.done && styles.taskCardDone,
-          { backgroundColor: '#F6F3EE', borderColor: 'rgba(26,28,32,0.06)' },
-        ]}
-      >
+    <Pressable
+      onPress={onSelect}
+      style={[
+        styles.taskRow,
+        {
+          borderBottomColor: rule,
+          opacity: task.done ? 0.55 : 1,
+          backgroundColor: active
+            ? isLight
+              ? `${accent}14`
+              : 'rgba(255,255,255,0.06)'
+            : 'transparent',
+        },
+      ]}
+    >
+      <Pressable onPress={onToggle} hitSlop={8} style={styles.checkHit}>
         <View
           style={[
-            styles.taskAccent,
-            active && { backgroundColor: accent },
+            styles.check,
+            {
+              borderColor: task.done ? accent : muted,
+              backgroundColor: task.done ? accent : 'transparent',
+            },
           ]}
-        />
-        <View style={styles.taskCardInner}>
-          <View style={styles.taskMainRow}>
-            <Pressable onPress={onToggle} hitSlop={8} style={styles.checkHit}>
-              <View
-                style={[
-                  styles.check,
-                  task.done && { backgroundColor: accent, borderColor: accent },
-                ]}
-              >
-                {task.done ? (
-                  <Feather name="check" size={14} color="#FFFFFF" />
-                ) : null}
-              </View>
-            </Pressable>
-
-            <Text
-              style={[styles.taskTitle, task.done && styles.taskTitleDone]}
-              numberOfLines={2}
-            >
-              {task.title}
-            </Text>
-
-            <Text style={styles.taskCount}>
-              {task.completedPomodoros} / {task.estimatePomodoros}
-            </Text>
-
-            <Pressable
-              onPress={onEdit}
-              hitSlop={6}
-              accessibilityLabel="Edit task"
-              style={styles.taskMoreBtn}
-            >
-              <Feather name="more-vertical" size={16} color="#777" />
-            </Pressable>
-          </View>
-
-          {task.note ? (
-            <View style={styles.noteBox}>
-              <Text style={styles.noteText}>{task.note}</Text>
-            </View>
-          ) : null}
+        >
+          {task.done ? <Feather name="check" size={14} color="#FFFFFF" /> : null}
         </View>
       </Pressable>
-    </View>
+
+      <View style={styles.taskTextCol}>
+        <Text
+          style={[
+            styles.taskTitle,
+            {
+              color: titleColor,
+              textDecorationLine: task.done ? 'line-through' : 'none',
+            },
+          ]}
+          numberOfLines={2}
+        >
+          {task.title}
+        </Text>
+        {task.note ? (
+          <Text style={[styles.noteText, { color: muted }]} numberOfLines={2}>
+            {task.note}
+          </Text>
+        ) : null}
+      </View>
+
+      <Text style={[styles.taskCount, { color: muted }]}>
+        {task.completedPomodoros}/{task.estimatePomodoros}
+      </Text>
+
+      <Pressable onPress={onEdit} hitSlop={6} accessibilityLabel="Edit task" style={styles.taskMoreBtn}>
+        <Feather name="more-vertical" size={16} color={muted} />
+      </Pressable>
+    </Pressable>
   );
 }
 
@@ -1362,27 +1415,29 @@ function ToggleRow({
 
 const styles = StyleSheet.create({
   root: { flex: 1, width: '100%', overflow: 'hidden' },
-  bgImage: {
+  doodleFrame: {
+    ...StyleSheet.absoluteFillObject,
     width: '100%',
     height: '100%',
+    zIndex: 0,
   },
-  bgImageDoodle: {
-    opacity: 0.9,
+  stageLayer: {
+    flex: 1,
+    zIndex: 1,
   },
-  scrollContent: {
+  stage: {
+    flex: 1,
+    zIndex: 1,
     paddingHorizontal: 20,
-    paddingTop: 48,
-    paddingBottom: 48,
     maxWidth: 520,
     width: '100%',
     alignSelf: 'center',
-    zIndex: 1,
   },
   topBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 22,
+    marginBottom: 18,
     gap: 12,
   },
   topActions: {
@@ -1393,21 +1448,9 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   brand: {
-    fontSize: 22,
-    fontWeight: '800',
-    letterSpacing: -0.3,
-  },
-  navBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
-  navBtnLabel: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 24,
+    fontWeight: '700',
+    letterSpacing: -0.4,
   },
   iconAction: {
     width: 36,
@@ -1417,262 +1460,188 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  themeBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  timerCard: {
-    borderRadius: 18,
-    paddingVertical: 32,
-    paddingHorizontal: 18,
-    alignItems: 'center',
-    gap: 16,
-    overflow: 'hidden',
-  },
-  modeTabs: {
+  phaseTabs: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     justifyContent: 'center',
-    gap: 6,
-    zIndex: 1,
+    gap: 10,
+    marginBottom: 8,
   },
-  modeTab: {
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 10,
+  phaseTab: {
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    minWidth: 72,
+    gap: 4,
   },
-  modeTabActive: {
-    backgroundColor: 'rgba(0,0,0,0.22)',
+  phaseTabActive: {
+    opacity: 1,
   },
-  modeTabText: {
-    fontSize: 13,
-    fontWeight: '600',
+  phaseTabText: {
+    fontSize: 12,
+    letterSpacing: 0.2,
   },
-  modeTabTextOnDark: {
-    color: '#FFFFFF',
+  phaseUnderline: {
+    marginTop: 4,
+    height: 2,
+    width: 22,
+    borderRadius: 2,
+  },
+  phaseUnderlineSpacer: {
+    marginTop: 4,
+    height: 2,
+    width: 22,
+  },
+  ritualCenter: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 14,
+    paddingBottom: 8,
   },
   timerText: {
-    fontSize: 92,
-    fontWeight: '700',
+    fontWeight: '600',
     fontVariant: ['tabular-nums'],
     letterSpacing: -2,
-    lineHeight: 104,
-  },
-  progressTrack: {
-    width: '80%',
-    height: 4,
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 4,
-  },
-  workingOn: {
-    fontSize: 15,
-    fontWeight: '500',
     textAlign: 'center',
   },
-  startBtn: {
-    backgroundColor: '#fff',
-    paddingVertical: 16,
-    paddingHorizontal: 64,
-    borderRadius: 12,
-    marginTop: 4,
-    borderBottomWidth: 4,
-    borderBottomColor: 'rgba(0,0,0,0.12)',
+  ritualPhase: {
+    marginTop: 2,
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 3,
+    textAlign: 'center',
   },
-  startLabel: {
-    fontSize: 20,
-    fontWeight: '800',
-    letterSpacing: 1.2,
-  },
-  skipLink: { padding: 6 },
-  skipText: { fontSize: 13 },
-  tasksCard: {
-    marginTop: 22,
-    borderRadius: 18,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 14,
-    gap: 12,
-  },
-  tasksHeader: {
+  ringControls: {
+    marginTop: 10,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingBottom: 10,
-    borderBottomWidth: 2,
+    justifyContent: 'center',
+    gap: 28,
   },
-  tasksTitle: { fontSize: 18, fontWeight: '700' },
-  tasksMenuBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.16)',
+  ringControlBtn: {
+    width: 48,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  tasksMenuBtnLight: {
-    backgroundColor: 'rgba(26,28,32,0.05)',
+  ringControlPlay: {
+    width: 56,
+    height: 56,
+  },
+  nowLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    textAlign: 'center',
+    maxWidth: '90%',
+  },
+  finishBlock: {
+    alignItems: 'center',
+    gap: 2,
+    marginTop: 4,
+  },
+  finishLabel: { fontSize: 11, fontWeight: '600', letterSpacing: 0.8, textTransform: 'uppercase' },
+  finishValue: { fontSize: 28, fontWeight: '600', letterSpacing: -0.5 },
+  finishHint: { fontSize: 12, fontWeight: '500' },
+  todayPeek: {
     borderWidth: 1,
-    borderColor: 'rgba(26,28,32,0.08)',
+    borderRadius: 20,
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    paddingBottom: 14,
+    marginBottom: 4,
   },
-  taskList: { gap: 10 },
-  taskCardWrap: {
-    position: 'relative',
-    zIndex: 1,
+  todayHandle: {
+    alignSelf: 'center',
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.35)',
+    marginBottom: 10,
   },
-  taskCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    overflow: 'hidden',
-    flexDirection: 'row',
-    minHeight: 56,
-    borderWidth: 1,
-    borderColor: 'transparent',
-  },
-  taskCardActive: {},
-  taskCardDone: {
-    opacity: 0.72,
-  },
-  taskAccent: {
-    width: 6,
-    backgroundColor: 'transparent',
-  },
-  taskAccentOn: {
-    backgroundColor: '#1A1A1A',
-  },
-  taskCardInner: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    gap: 8,
-  },
-  taskMainRow: {
+  todayPeekRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    justifyContent: 'space-between',
+  },
+  todayPeekTitle: { fontSize: 15, fontWeight: '700' },
+  todayPeekSub: { marginTop: 4, fontSize: 13, fontWeight: '500' },
+  todayBackdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  todaySheet: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 10,
+    paddingHorizontal: 18,
+  },
+  todaySheetHandle: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    marginBottom: 14,
+  },
+  todaySheetHeader: {
+    marginBottom: 8,
+    gap: 2,
+  },
+  todaySheetTitle: { fontSize: 28, fontWeight: '700', letterSpacing: -0.5 },
+  todaySheetMeta: { fontSize: 13, fontWeight: '500' },
+  todayList: {
+    paddingBottom: 12,
+    gap: 0,
+  },
+  taskRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 6,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderRadius: 10,
   },
   checkHit: { padding: 2 },
   check: {
     width: 22,
     height: 22,
     borderRadius: 11,
-    borderWidth: 2,
-    borderColor: '#D0D0D0',
-    backgroundColor: '#E8E8E8',
+    borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  checkOn: {
-    backgroundColor: '#BA4949',
-    borderColor: '#BA4949',
-  },
+  taskTextCol: { flex: 1, minWidth: 0, gap: 2 },
   taskTitle: {
-    flex: 1,
-    minWidth: 0,
-    color: '#333',
     fontSize: 15,
-    fontWeight: '700',
-  },
-  taskTitleDone: {
-    textDecorationLine: 'line-through',
-    color: '#999',
+    fontWeight: '600',
   },
   taskCount: {
-    color: '#9A9A9A',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
   },
   taskMoreBtn: {
     width: 32,
     height: 32,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  noteBox: {
-    marginLeft: 34,
-    backgroundColor: '#F4F0D9',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
   noteText: {
-    color: '#5C5428',
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '500',
   },
-  taskMenu: {
-    position: 'absolute',
-    right: 8,
-    top: 44,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    minWidth: 120,
-    borderWidth: 1,
-    borderColor: '#E8E8E8',
-    zIndex: 20,
-    ...Platform.select({
-      web: { boxShadow: '0 8px 20px rgba(0,0,0,0.18)' },
-      default: {
-        elevation: 6,
-        shadowColor: '#000',
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
-        shadowOffset: { width: 0, height: 4 },
-      },
-    }),
-  },
-  taskMenuItem: {
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  taskMenuDanger: {
-    color: '#BA4949',
-    fontWeight: '700',
-    fontSize: 14,
-  },
   addTaskBtn: {
-    marginTop: 2,
-    borderWidth: 2,
+    marginTop: 14,
+    borderWidth: 1.5,
     borderStyle: 'dashed',
-    borderRadius: 12,
+    borderRadius: 14,
     paddingVertical: 14,
     alignItems: 'center',
   },
   addTaskBtnText: {
     fontWeight: '700',
     fontSize: 15,
-  },
-  finishCard: {
-    marginTop: 16,
-    borderRadius: 16,
-    padding: 16,
-    alignItems: 'center',
-    gap: 4,
-  },
-  finishLabel: { fontSize: 12 },
-  finishValue: { fontSize: 28, fontWeight: '700' },
-  finishHint: {
-    fontSize: 12,
-    textAlign: 'center',
-  },
-  powered: {
-    marginTop: 28,
-    marginBottom: 8,
-    textAlign: 'center',
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 0.2,
   },
   modalBackdrop: {
     flex: 1,

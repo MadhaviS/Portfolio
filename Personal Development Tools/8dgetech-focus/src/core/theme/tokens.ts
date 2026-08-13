@@ -1,8 +1,7 @@
 export type ThemeMode = 'light' | 'dark' | 'system';
 
 /**
- * Shared palette: tomato focus red, cream surfaces, soft charcoal ink.
- * Contrast: light = dark text only; dark = light text only.
+ * Shared palette: Option C — plum focus, sage short, clay long.
  */
 export const lightTheme = {
   mode: 'light' as const,
@@ -14,14 +13,14 @@ export const lightTheme = {
     textMuted: '#6B6661',
     onSurface: '#1A1C20',
     onSurfaceMuted: '#6B6661',
-    primary: '#BA4949',
+    primary: '#397097',
     primaryText: '#FFFFFF',
-    accent: '#C15C5C',
+    accent: '#4A84A8',
     border: '#E8E1D8',
     doodle: '#A89888',
-    success: '#38858A',
-    danger: '#BA4949',
-    timerRing: '#BA4949',
+    success: '#4A7C74',
+    danger: '#397097',
+    timerRing: '#397097',
     timerTrack: '#EDE6DC',
   },
 };
@@ -36,14 +35,14 @@ export const darkTheme = {
     textMuted: '#D4C8BE',
     onSurface: '#FFF8F2',
     onSurfaceMuted: '#D4C8BE',
-    primary: '#C15C5C',
+    primary: '#4A84A8',
     primaryText: '#FFFFFF',
-    accent: '#D47A7A',
+    accent: '#6BA0C4',
     border: '#3A323E',
     doodle: '#5A4E58',
-    success: '#4A9B9F',
-    danger: '#C15C5C',
-    timerRing: '#C15C5C',
+    success: '#5F968C',
+    danger: '#4A84A8',
+    timerRing: '#4A84A8',
     timerTrack: '#2E2734',
   },
 };

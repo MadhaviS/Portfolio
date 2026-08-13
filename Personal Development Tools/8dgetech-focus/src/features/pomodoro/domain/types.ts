@@ -102,31 +102,31 @@ export const PHASE_THEME: Record<
   }
 > = {
   focus: {
-    bg: '#BA4949',
-    panel: 'rgba(255,255,255,0.16)',
-    accent: '#C15C5C',
-    label: 'Pomodoro',
-    pageLight: '#A85C58',
-    panelLight: 'rgba(255,248,245,0.82)',
-    pageDark: '#2A1818',
-  },
-  shortBreak: {
-    bg: '#38858A',
-    panel: 'rgba(255,255,255,0.16)',
-    accent: '#4A9B9F',
-    label: 'Short Break',
-    pageLight: '#4F7E82',
-    panelLight: 'rgba(245,252,252,0.82)',
-    pageDark: '#1A2A2C',
-  },
-  longBreak: {
     bg: '#397097',
     panel: 'rgba(255,255,255,0.16)',
     accent: '#4A84A8',
-    label: 'Long Break',
+    label: 'Pomodoro',
     pageLight: '#4A6F8C',
     panelLight: 'rgba(245,249,252,0.82)',
     pageDark: '#161D28',
+  },
+  shortBreak: {
+    bg: '#4A7C74',
+    panel: 'rgba(255,255,255,0.16)',
+    accent: '#5F968C',
+    label: 'Short Break',
+    pageLight: '#3D6862',
+    panelLight: 'rgba(245,252,250,0.82)',
+    pageDark: '#152421',
+  },
+  longBreak: {
+    bg: '#B8895A',
+    panel: 'rgba(255,255,255,0.16)',
+    accent: '#C9A070',
+    label: 'Long Break',
+    pageLight: '#9A734A',
+    panelLight: 'rgba(252,248,242,0.82)',
+    pageDark: '#2A2118',
   },
 };
 

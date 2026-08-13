@@ -19,7 +19,7 @@ export const APP_REGISTRY: MiniAppDefinition[] = [
     subtitle: 'Focus · breaks · tasks',
     route: '/pomodoro',
     enabled: true,
-    accentHint: 'tomato',
+    accentHint: 'blue',
   },
   // Future modules (disabled until built):
   // { id: 'habits', title: 'Habits', ... enabled: false }

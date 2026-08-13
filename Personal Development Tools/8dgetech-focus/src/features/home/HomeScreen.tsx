@@ -26,7 +26,6 @@ import {
   IconMoon,
   IconPerson,
   IconSun,
-  IconTarget,
   IconTomatoClock,
 } from '../../core/theme/LineIcons';
 
@@ -37,7 +36,7 @@ const FEATURES = [
   {
     title: 'Stay focused',
     body: 'Eliminate distractions and get more done.',
-    Icon: IconTarget,
+    Icon: IconTomatoClock,
   },
   {
     title: 'Build better habits',

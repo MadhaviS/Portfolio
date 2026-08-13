@@ -9,21 +9,32 @@ import {
 } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
+  Easing,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
 } from 'react-native-reanimated';
 import { useRouter, useSegments } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Feather from '@expo/vector-icons/Feather';
-import { PHASE_THEME, formatTimer } from '../domain/types';
+import { PHASE_THEME, formatTimer, type PomodoroPhase } from '../domain/types';
 import { usePomodoro } from './PomodoroProvider';
 import { subscribeOpenFromPip } from './timerPip';
+import { PhaseIconGlyph } from './PhaseIcon';
 
-const CARD_W = Platform.OS === 'web' ? 228 : 200;
-const CARD_H = Platform.OS === 'web' ? 96 : 88;
+const CARD_W = Platform.OS === 'web' ? 210 : 188;
+const CARD_H = Platform.OS === 'web' ? 108 : 100;
 const MARGIN = 12;
 const CLOSE_SIZE = 64;
+
+const PHASE_SHORT: Record<PomodoroPhase, string> = {
+  focus: 'FOCUS',
+  shortBreak: 'SHORT BREAK',
+  longBreak: 'LONG BREAK',
+};
 
 type BubblePos = { x: number; y: number };
 let savedPos: BubblePos | null = null;
@@ -40,20 +51,40 @@ function defaultPos(
   };
 }
 
+/** Soft breath scale for the floating bubble while running. */
+function softBreath() {
+  return withRepeat(
+    withSequence(
+      withTiming(1.025, {
+        duration: 3200,
+        easing: Easing.inOut(Easing.sin),
+      }),
+      withTiming(1, {
+        duration: 3200,
+        easing: Easing.inOut(Easing.sin),
+      }),
+    ),
+    -1,
+    false,
+  );
+}
+
 export function useShowTimerBubble() {
   const { running, isPartial, minimized, overlayDismissed, pipOpen } =
     usePomodoro();
   const segments = useSegments();
+  const onPomodoro = segments[0] === 'pomodoro';
+  // Stay visible on home until we actually reach /pomodoro (avoid flicker-hide)
   return (
     !overlayDismissed &&
     !pipOpen &&
-    segments[0] !== 'pomodoro' &&
+    !onPomodoro &&
     segments[0] !== 'sign-in' &&
     (running || isPartial || minimized)
   );
 }
 
-/** Always-mounted: Picture-in-Picture click can fire while the in-app bubble is hidden. */
+/** Always-mounted: Picture-in-Picture / bubble open → full pomodoro screen. */
 export function PipNavigationBridge() {
   const router = useRouter();
   const { expand } = usePomodoro();
@@ -61,8 +92,9 @@ export function PipNavigationBridge() {
   useEffect(
     () =>
       subscribeOpenFromPip(() => {
+        // Push first so the route change isn't lost if expand re-renders
+        router.push('/pomodoro');
         expand();
-        router.navigate('/pomodoro');
       }),
     [expand, router],
   );
@@ -91,6 +123,7 @@ export function TimerBubble() {
   const y = useSharedValue(startPos.y);
   const dragging = useSharedValue(0);
   const overClose = useSharedValue(0);
+  const breath = useSharedValue(1);
 
   useEffect(() => {
     const next =
@@ -103,13 +136,21 @@ export function TimerBubble() {
     y.value = Math.min(maxY, Math.max(minY, next.y));
   }, [width, height, insets.top, insets.bottom, x, y]);
 
+  useEffect(() => {
+    if (running && visible) {
+      breath.value = softBreath();
+    } else {
+      breath.value = withTiming(1, { duration: 420 });
+    }
+  }, [running, visible, breath]);
+
   const persistPos = useCallback((nextX: number, nextY: number) => {
     savedPos = { x: nextX, y: nextY };
   }, []);
 
   const openTimer = useCallback(() => {
+    router.push('/pomodoro');
     expand();
-    router.navigate('/pomodoro');
   }, [expand, router]);
 
   const toggleRun = useCallback(() => {
@@ -173,7 +214,7 @@ export function TimerBubble() {
     transform: [
       { translateX: x.value },
       { translateY: y.value },
-      { scale: overClose.value ? 0.92 : 1 },
+      { scale: (overClose.value ? 0.92 : 1) * breath.value },
     ],
     opacity: overClose.value ? 0.82 : 1,
   }));
@@ -197,13 +238,13 @@ export function TimerBubble() {
           closeZoneStyle,
         ]}
       >
-        <View style={styles.closeZone}>
+        <View style={[styles.closeZone, { backgroundColor: theme.bg }]}>
           <Text style={styles.closeMark}>×</Text>
         </View>
       </Animated.View>
 
       <Animated.View
-        accessibilityLabel={`Pomodoro ${formatTimer(remaining)}. Drag to move.`}
+        accessibilityLabel={`${PHASE_SHORT[phase]} ${formatTimer(remaining)}. Drag to move.`}
         style={[
           styles.card,
           animatedStyle,
@@ -229,19 +270,10 @@ export function TimerBubble() {
             ]}
           >
             <View style={styles.metaRow}>
+              <PhaseIconGlyph phase={phase} color="#FFFFFF" size={16} />
               <Text style={styles.phase} numberOfLines={1}>
-                {theme.label}
+                {PHASE_SHORT[phase]}
               </Text>
-              <View
-                style={[
-                  styles.badge,
-                  !running && styles.badgePaused,
-                ]}
-              >
-                <Text style={styles.badgeText}>
-                  {running ? 'Running' : 'Paused'}
-                </Text>
-              </View>
             </View>
             <Text style={styles.time} numberOfLines={1}>
               {formatTimer(remaining)}
@@ -271,23 +303,12 @@ export function TimerBubble() {
             accessibilityLabel="Open timer"
             onPress={openTimer}
             style={({ pressed }) => [
-              styles.textBtn,
-              pressed && styles.pressed,
-            ]}
-          >
-            <Text style={styles.textBtnLabel}>Open</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Hide timer"
-            onPress={dismissOverlay}
-            style={({ pressed }) => [
               styles.iconBtn,
-              styles.ghostBtn,
+              styles.openBtn,
               pressed && styles.pressed,
             ]}
           >
-            <Feather name="x" size={16} color="#FFFFFF" />
+            <Feather name="maximize-2" size={15} color="#FFFFFF" />
           </Pressable>
         </View>
       </Animated.View>
@@ -313,7 +334,6 @@ const styles = StyleSheet.create({
     width: CLOSE_SIZE,
     height: CLOSE_SIZE,
     borderRadius: CLOSE_SIZE / 2,
-    backgroundColor: '#BA4949',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
@@ -351,75 +371,43 @@ const styles = StyleSheet.create({
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
+    gap: 6,
     marginBottom: 2,
   },
   phase: {
     flex: 1,
     color: 'rgba(255,255,255,0.92)',
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.2,
-  },
-  badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-  },
-  badgePaused: {
-    backgroundColor: 'rgba(0,0,0,0.18)',
-  },
-  badgeText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '700',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.8,
   },
   time: {
     color: '#FFFFFF',
-    fontSize: 28,
+    fontSize: 30,
     fontWeight: '800',
     fontVariant: ['tabular-nums'],
     letterSpacing: -0.8,
-    lineHeight: 32,
+    lineHeight: 34,
   },
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
   },
   iconBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
   },
   primaryBtn: {
     backgroundColor: 'rgba(255,255,255,0.94)',
   },
-  ghostBtn: {
-    backgroundColor: 'rgba(0,0,0,0.18)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.18)',
-  },
-  textBtn: {
-    flex: 1,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+  openBtn: {
     backgroundColor: 'rgba(255,255,255,0.16)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.22)',
-  },
-  textBtnLabel: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
+    borderColor: 'rgba(255,255,255,0.28)',
   },
   pressed: {
     opacity: 0.82,

@@ -49,15 +49,17 @@ export function PomodoroProvider({ children }: { children: ReactNode }) {
     () => ({
       onClose: () => {
         setPipOpen(false);
-        setMinimized(false);
-        setOverlayDismissed(true);
+        // Keep minimized so the in-app bubble returns (friendlier than vanishing)
+        setMinimized(true);
+        setOverlayDismissed(false);
       },
       onOpenApp: () => {
+        // Navigate via bridge first, then clear floating UI
+        emitOpenFromPip();
         closeTimerPip();
         setPipOpen(false);
         setMinimized(false);
         setOverlayDismissed(false);
-        emitOpenFromPip();
       },
       onToggleRun: () => {
         if (runningRef.current) pauseRef.current();
@@ -112,7 +114,10 @@ export function PomodoroProvider({ children }: { children: ReactNode }) {
         running: timer.running,
       },
       pipHandlers,
-    ).then((ok) => setPipOpen(ok));
+    ).then((ok) => {
+      setPipOpen(ok);
+      // If system PiP isn't available, in-app bubble stays (minimized=true)
+    });
   }, [pipHandlers, timer.phase, timer.remaining, timer.running]);
 
   useEffect(() => {

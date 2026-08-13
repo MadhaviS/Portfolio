@@ -348,7 +348,7 @@ const styles = StyleSheet.create({
     fontFamily: fontBody,
     fontSize: 14,
     fontWeight: '600',
-    color: '#BA4949',
+    color: '#397097',
   },
   cancelHit: {
     paddingHorizontal: 16,

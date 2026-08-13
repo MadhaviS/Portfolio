@@ -27,7 +27,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
-        "backgroundColor": "#BA4949"
+        "backgroundColor": "#397097"
       },
       "package": "com.eightdgetech.focus"
     },
@@ -39,7 +39,7 @@
         "expo-notifications",
         {
           "icon": "./assets/icon.png",
-          "color": "#BA4949",
+          "color": "#397097",
           "sounds": []
         }
       ],
