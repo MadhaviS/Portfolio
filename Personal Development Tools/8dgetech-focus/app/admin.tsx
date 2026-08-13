@@ -1,4 +1,4 @@
-import { AdminScreen } from '../src/features/admin';
+import { AdminScreen } from '../src/shell/admin';
 
 export default function AdminRoute() {
   return <AdminScreen />;

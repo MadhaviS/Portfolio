@@ -128,3 +128,29 @@ create policy tasks_admin_read on public.pomodoro_tasks
 drop policy if exists sessions_admin_read on public.pomodoro_sessions;
 create policy sessions_admin_read on public.pomodoro_sessions
   for select using (public.is_admin());
+
+-- Drift watches (distraction tracking sessions)
+create table if not exists public.drift_sessions (
+  id text primary key,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  intention text not null default 'Stay with the work',
+  task_id text,
+  started_at timestamptz not null,
+  ended_at timestamptz,
+  events jsonb not null default '[]'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists drift_sessions_user_idx on public.drift_sessions (user_id);
+create index if not exists drift_sessions_started_idx on public.drift_sessions (user_id, started_at desc);
+
+alter table public.drift_sessions enable row level security;
+
+drop policy if exists drift_sessions_all_own on public.drift_sessions;
+create policy drift_sessions_all_own on public.drift_sessions
+  for all using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+drop policy if exists drift_sessions_admin_read on public.drift_sessions;
+create policy drift_sessions_admin_read on public.drift_sessions
+  for select using (public.is_admin());

@@ -104,7 +104,9 @@ Pomodoro ── Report ──► Calendar
 | Feature | Status |
 |---------|--------|
 | Toolkit landing + registry | ✅ |
-| Pomodoro / short / long breaks | ✅ |
+| **Pulse** — Pomodoro timer | ✅ |
+| **Drift** — catch distractions | ✅ |
+| **Depth** — deep-work blocks | 🔜 stub |
 | Tasks + estimates + active task | ✅ |
 | Report + 7-day chart | ✅ |
 | Calendar (day agenda) | ✅ |
@@ -126,20 +128,27 @@ Pomodoro ── Report ──► Calendar
 ## Project layout
 
 ```text
-app/                         # Expo Router routes
+app/                         # Expo Router routes (thin wrappers)
+public/                      # Web static assets (.htaccess, doodles)
 src/
-  core/                      # theme, auth, storage, doodles
-  registry/                  # enable/disable mini-apps
-  features/
-    home/                    # landing
-    auth/                    # sign-in
-    pomodoro/                # data · domain · presentation
-supabase/                    # future backend stub
-docs/screenshots/            # README visuals
+  public/                    # Shared suite platform (auth, theme, storage, supabase, registry)
+  apps/                      # One folder per product
+    pulse/                   # Pomodoro — data · domain · presentation
+    drift/                   # Distraction awareness
+    depth/                   # Stub for future deep-work app
+    catalog.ts               # Module map for shipped / stub apps
+  shell/                     # Suite chrome (landing, sign-in, admin)
+supabase/                    # Backend SQL
+docs/screenshots/
 ```
 
-Add another tool: create `src/features/<name>/`, register it in `src/registry/appRegistry.ts`, add a route under `app/`.
+Add another tool:
+1. Create `src/apps/<id>/` (domain / data / presentation + `index.ts`)
+2. Register in `src/public/registry/appRegistry.ts` and `src/apps/catalog.ts`
+3. Add `app/<route>.tsx` and a `Stack.Screen` in `app/_layout.tsx`
+4. Keep shared code in `src/public` — never duplicate theme/auth/storage into an app folder
 
+Root `public/` is for static web files only; shared **code** lives in `src/public`.
 ---
 
 ## Run locally

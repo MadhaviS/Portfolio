@@ -6,37 +6,51 @@ import { StatusBar } from 'expo-status-bar';
 import * as Linking from 'expo-linking';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { FullWindowOverlay } from 'react-native-screens';
-import { ThemeProvider, useTheme } from '../src/core/theme/ThemeProvider';
-import { DoodleBackground } from '../src/core/theme/DoodleBackground';
-import { AuthProvider, useAuth } from '../src/core/auth/AuthProvider';
-import { getSupabase } from '../src/core/supabase/client';
+import { ThemeProvider, useTheme } from '../src/public/theme/ThemeProvider';
+import { DoodleBackground } from '../src/public/theme/DoodleBackground';
+import { AuthProvider, useAuth } from '../src/public/auth/AuthProvider';
+import { getSupabase } from '../src/public/supabase/client';
 import {
   PipNavigationBridge,
   PomodoroProvider,
   TimerBubble,
   useShowTimerBubble,
-} from '../src/features/pomodoro';
-import { ensureWebFonts, fontBody } from '../src/core/theme/fonts';
+} from '../src/apps/pulse';
+import {
+  DriftProvider,
+  DriftBubble,
+  DriftPipNavigationBridge,
+  useShowDriftBubble,
+} from '../src/apps/drift';
+import { ensureWebFonts, fontBody } from '../src/public/theme/fonts';
+// Future apps: import providers from '../src/apps/<id>' and nest below AuthProvider.
 
 ensureWebFonts();
 
 function BubbleOverlay() {
-  const visible = useShowTimerBubble();
-  if (!visible) return null;
+  const showPulse = useShowTimerBubble();
+  const showDrift = useShowDriftBubble();
+  if (!showPulse && !showDrift) return null;
 
-  const bubble = <TimerBubble />;
+  const bubbles = (
+    <>
+      {showPulse ? <TimerBubble /> : null}
+      {showDrift ? <DriftBubble /> : null}
+    </>
+  );
+
   if (Platform.OS === 'ios') {
     return (
       <FullWindowOverlay>
         <GestureHandlerRootView pointerEvents="box-none" style={styles.overlay}>
-          {bubble}
+          {bubbles}
         </GestureHandlerRootView>
       </FullWindowOverlay>
     );
   }
   return (
     <View pointerEvents="box-none" style={styles.overlay}>
-      {bubble}
+      {bubbles}
     </View>
   );
 }
@@ -159,6 +173,14 @@ function RootNavigator() {
               }}
             />
             <Stack.Screen
+              name="drift"
+              options={{
+                title: 'Drift',
+                headerShown: false,
+                contentStyle: { backgroundColor: 'transparent' },
+              }}
+            />
+            <Stack.Screen
               name="admin"
               options={{
                 title: 'Admin',
@@ -179,6 +201,7 @@ function RootNavigator() {
             />
           </Stack>
           <PipNavigationBridge />
+          <DriftPipNavigationBridge />
           <BubbleOverlay />
         </GestureHandlerRootView>
       </AuthBootstrap>
@@ -191,7 +214,9 @@ export default function RootLayout() {
     <ThemeProvider>
       <AuthProvider>
         <PomodoroProvider>
-          <RootNavigator />
+          <DriftProvider>
+            <RootNavigator />
+          </DriftProvider>
         </PomodoroProvider>
       </AuthProvider>
     </ThemeProvider>
