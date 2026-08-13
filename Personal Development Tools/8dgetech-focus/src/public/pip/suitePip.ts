@@ -1,6 +1,7 @@
 /**
- * Single Document Picture-in-Picture for Focus suite.
- * Pulse and/or Drift rows stack in one window when both are minimized.
+ * Single system PiP for Focus suite (Pulse and/or Drift stacked).
+ * - Desktop Chrome: Document Picture-in-Picture
+ * - Android / mobile Chrome: shared Video PiP (one window; canvas draws both rows)
  */
 import { Platform } from 'react-native';
 import {
@@ -29,6 +30,8 @@ export type SuitePulseHandlers = {
   onDismiss: () => void;
   onOpenApp: () => void;
   onToggleRun: () => void;
+  onPause?: () => void;
+  onResume?: () => void;
 };
 
 export type SuiteDriftHandlers = {
@@ -53,6 +56,7 @@ const STACK_GAP = 8;
 const CARD_BG = '#1C1C1E';
 const BTN_MUTED = '#3A3A3C';
 const DRIFT_ACCENT = PHASE_THEME.shortBreak.bg;
+const VIDEO_PIP_SIZE = 512;
 
 let pipWindow: Window | null = null;
 let silentClose = false;
@@ -63,11 +67,44 @@ let driftHandlers: SuiteDriftHandlers | null = null;
 let layoutKey: string | null = null;
 let tickTimer: ReturnType<typeof setInterval> | null = null;
 
+/** Android / mobile: one Video PiP shared by Pulse + Drift. */
+let videoPip: {
+  video: HTMLVideoElement;
+  canvas: HTMLCanvasElement;
+  tick: ReturnType<typeof setInterval> | null;
+} | null = null;
+let videoLeaveWired = false;
+let applyingVideoSync = false;
+let pageHiddenAtMs = 0;
+let keepAlive: {
+  ctx: AudioContext;
+  osc: OscillatorNode;
+  gain: GainNode;
+} | null = null;
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) pageHiddenAtMs = Date.now();
+  });
+}
+
 function getPipApi(): PipApi | null {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
   const api = (window as Window & { documentPictureInPicture?: PipApi })
     .documentPictureInPicture;
   return api ?? null;
+}
+
+function canUseVideoPip(): boolean {
+  if (Platform.OS !== 'web' || typeof document === 'undefined') return false;
+  const doc = document as Document & { pictureInPictureEnabled?: boolean };
+  return (
+    !!doc.pictureInPictureEnabled &&
+    typeof HTMLVideoElement !== 'undefined' &&
+    typeof HTMLCanvasElement !== 'undefined' &&
+    typeof (HTMLCanvasElement.prototype as HTMLCanvasElement).captureStream ===
+      'function'
+  );
 }
 
 function phaseAccent(phase: PomodoroPhase): string {
@@ -407,7 +444,389 @@ function ensureTick() {
   }, 1000);
 }
 
-async function closeWindowSilent() {
+function ellipsize(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+): string {
+  let drawn = text;
+  while (ctx.measureText(drawn).width > maxWidth && drawn.length > 1) {
+    drawn = `${drawn.slice(0, -2)}…`;
+  }
+  return drawn;
+}
+
+function drawHalf(
+  ctx: CanvasRenderingContext2D,
+  y: number,
+  h: number,
+  bg: string,
+  primary: string,
+  secondary: string,
+  badge: string,
+) {
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, y, VIDEO_PIP_SIZE, h);
+  const midY = y + h / 2;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font =
+    '800 96px ui-monospace, SFMono-Regular, Menlo, "Courier New", monospace';
+  ctx.fillText(primary, VIDEO_PIP_SIZE / 2, midY - 18);
+  ctx.fillStyle = 'rgba(255,255,255,0.88)';
+  ctx.font = '600 28px Outfit, system-ui, sans-serif';
+  ctx.fillText(
+    ellipsize(ctx, secondary, VIDEO_PIP_SIZE - 64),
+    VIDEO_PIP_SIZE / 2,
+    midY + 48,
+  );
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  ctx.font = '700 22px Outfit, system-ui, sans-serif';
+  ctx.fillText(badge, VIDEO_PIP_SIZE / 2, y + h - 28);
+}
+
+function drawVideoFrame() {
+  if (!videoPip) return;
+  const { canvas } = videoPip;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  const dual = !!(pulseState && driftState);
+  const size = VIDEO_PIP_SIZE;
+
+  if (!pulseState && !driftState) {
+    ctx.fillStyle = CARD_BG;
+    ctx.fillRect(0, 0, size, size);
+    return;
+  }
+
+  if (dual) {
+    const half = size / 2;
+    const p = pulseState!;
+    const d = driftState!;
+    drawHalf(
+      ctx,
+      0,
+      half,
+      PHASE_THEME[p.phase].bg,
+      formatTimer(liveRemaining(p)),
+      pulseTaskLabel(p),
+      p.running ? PHASE_THEME[p.phase].label : 'Paused',
+    );
+    drawHalf(
+      ctx,
+      half,
+      half,
+      PHASE_THEME.shortBreak.bg,
+      d.nudgeVisible ? 'Back?' : String(d.driftCount),
+      d.nudgeVisible ? 'Tap to return' : d.intention.trim() || 'Watching',
+      'Drift',
+    );
+    // Hairline between rows
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillRect(0, half - 1, size, 2);
+    return;
+  }
+
+  if (pulseState) {
+    const p = pulseState;
+    ctx.fillStyle = PHASE_THEME[p.phase].bg;
+    ctx.fillRect(0, 0, size, size);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font =
+      '800 148px ui-monospace, SFMono-Regular, Menlo, "Courier New", monospace';
+    ctx.fillText(formatTimer(liveRemaining(p)), size / 2, size / 2 - 28);
+    ctx.fillStyle = 'rgba(255,255,255,0.88)';
+    ctx.font = '600 36px Outfit, system-ui, sans-serif';
+    ctx.fillText(
+      ellipsize(ctx, pulseTaskLabel(p), size - 80),
+      size / 2,
+      size / 2 + 88,
+    );
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.font = '700 28px Outfit, system-ui, sans-serif';
+    ctx.fillText(
+      p.running ? PHASE_THEME[p.phase].label : 'Paused',
+      size / 2,
+      size - 56,
+    );
+    return;
+  }
+
+  const d = driftState!;
+  ctx.fillStyle = PHASE_THEME.shortBreak.bg;
+  ctx.fillRect(0, 0, size, size);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font =
+    '800 148px ui-monospace, SFMono-Regular, Menlo, "Courier New", monospace';
+  ctx.fillText(
+    d.nudgeVisible ? 'Back?' : String(d.driftCount),
+    size / 2,
+    size / 2 - 28,
+  );
+  ctx.fillStyle = 'rgba(255,255,255,0.88)';
+  ctx.font = '600 36px Outfit, system-ui, sans-serif';
+  ctx.fillText(
+    ellipsize(
+      ctx,
+      d.nudgeVisible ? 'Tap to return' : d.intention.trim() || 'Watching',
+      size - 80,
+    ),
+    size / 2,
+    size / 2 + 88,
+  );
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  ctx.font = '700 28px Outfit, system-ui, sans-serif';
+  ctx.fillText('Drift', size / 2, size - 56);
+}
+
+function startKeepAlive() {
+  if (keepAlive || typeof window === 'undefined') return;
+  const AC =
+    window.AudioContext ||
+    (window as Window & { webkitAudioContext?: typeof AudioContext })
+      .webkitAudioContext;
+  if (!AC) return;
+  try {
+    const ctx = new AC();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    gain.gain.value = 0.00001;
+    osc.frequency.value = 20;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    void ctx.resume();
+    keepAlive = { ctx, osc, gain };
+  } catch {
+    keepAlive = null;
+  }
+}
+
+function stopKeepAlive() {
+  if (!keepAlive) return;
+  try {
+    keepAlive.osc.stop();
+    void keepAlive.ctx.close();
+  } catch {
+    // ignore
+  }
+  keepAlive = null;
+}
+
+function syncVideoPlayback() {
+  if (!videoPip) return;
+  const { video } = videoPip;
+  const running = !!pulseState?.running;
+  applyingVideoSync = true;
+  try {
+    if (running) {
+      startKeepAlive();
+      if (video.paused) void video.play().catch(() => {});
+    } else if (pulseState) {
+      stopKeepAlive();
+      if (!video.paused) video.pause();
+    } else {
+      // Drift-only: keep playing so Android PiP stays alive.
+      startKeepAlive();
+      if (video.paused) void video.play().catch(() => {});
+    }
+  } finally {
+    window.setTimeout(() => {
+      applyingVideoSync = false;
+    }, 80);
+  }
+}
+
+function wireMediaSession() {
+  if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+  try {
+    const parts: string[] = [];
+    if (pulseState) {
+      parts.push(formatTimer(liveRemaining(pulseState)));
+    }
+    if (driftState) {
+      parts.push(
+        driftState.nudgeVisible
+          ? 'Drift · Back?'
+          : `Drift · ${driftState.driftCount}`,
+      );
+    }
+    const artworkSrc = videoPip?.canvas.toDataURL('image/jpeg', 0.92);
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: parts[0] ?? 'Focus',
+      artist: parts.slice(1).join(' · ') || (pulseState ? pulseTaskLabel(pulseState) : 'Drift'),
+      album: 'Focus suite',
+      artwork: artworkSrc
+        ? [
+            {
+              src: artworkSrc,
+              sizes: `${VIDEO_PIP_SIZE}x${VIDEO_PIP_SIZE}`,
+              type: 'image/jpeg',
+            },
+          ]
+        : [],
+    });
+    navigator.mediaSession.playbackState = pulseState?.running
+      ? 'playing'
+      : 'paused';
+
+    if (pulseState) {
+      navigator.mediaSession.setActionHandler('play', () => {
+        if (pulseHandlers?.onResume) pulseHandlers.onResume();
+        else pulseHandlers?.onToggleRun();
+      });
+      navigator.mediaSession.setActionHandler('pause', () => {
+        if (pulseHandlers?.onPause) pulseHandlers.onPause();
+        else pulseHandlers?.onToggleRun();
+      });
+    } else {
+      navigator.mediaSession.setActionHandler('play', null);
+      navigator.mediaSession.setActionHandler('pause', null);
+    }
+    navigator.mediaSession.setActionHandler('stop', () => {
+      (pulseHandlers ?? driftHandlers)?.onOpenApp();
+    });
+  } catch {
+    // ignore
+  }
+}
+
+function refreshVideoPip() {
+  drawVideoFrame();
+  syncVideoPlayback();
+  wireMediaSession();
+}
+
+function notifySystemClosed() {
+  const p = pulseHandlers;
+  const d = driftHandlers;
+  pulseState = null;
+  driftState = null;
+  p?.onClose();
+  d?.onClose();
+}
+
+function stopVideoPip(silent: boolean) {
+  if (!videoPip) return;
+  if (videoPip.tick != null) {
+    clearInterval(videoPip.tick);
+    videoPip.tick = null;
+  }
+  stopKeepAlive();
+  const { video } = videoPip;
+  try {
+    if (document.pictureInPictureElement === video) {
+      silentClose = silent;
+      void document.exitPictureInPicture();
+    }
+  } catch {
+    // ignore
+  }
+  try {
+    video.pause();
+    const stream = video.srcObject as MediaStream | null;
+    stream?.getTracks().forEach((t) => t.stop());
+    video.srcObject = null;
+    video.remove();
+  } catch {
+    // ignore
+  }
+  videoPip = null;
+  videoLeaveWired = false;
+  if (!silent) notifySystemClosed();
+}
+
+async function ensureVideoPip(): Promise<boolean> {
+  if (!canUseVideoPip()) return false;
+  if (!pulseState && !driftState) {
+    stopVideoPip(true);
+    return false;
+  }
+
+  if (videoPip && document.pictureInPictureElement === videoPip.video) {
+    refreshVideoPip();
+    return true;
+  }
+
+  stopVideoPip(true);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = VIDEO_PIP_SIZE;
+  canvas.height = VIDEO_PIP_SIZE;
+
+  const video = document.createElement('video');
+  video.muted = true;
+  video.playsInline = true;
+  video.autoplay = true;
+  video.style.position = 'fixed';
+  video.style.width = '1px';
+  video.style.height = '1px';
+  video.style.opacity = '0';
+  video.style.pointerEvents = 'none';
+  video.style.bottom = '0';
+  video.style.right = '0';
+  document.body.appendChild(video);
+
+  const stream = canvas.captureStream(12);
+  video.srcObject = stream;
+  videoPip = { video, canvas, tick: null };
+  refreshVideoPip();
+  videoPip.tick = setInterval(refreshVideoPip, 1000);
+
+  if (!videoLeaveWired) {
+    videoLeaveWired = true;
+    video.addEventListener('leavepictureinpicture', () => {
+      if (silentClose) {
+        silentClose = false;
+        stopVideoPip(true);
+        return;
+      }
+      stopVideoPip(false);
+    });
+    video.addEventListener('play', () => {
+      if (applyingVideoSync || !pulseState) return;
+      if (!pulseState.running) {
+        if (pulseHandlers?.onResume) pulseHandlers.onResume();
+        else pulseHandlers?.onToggleRun();
+      }
+    });
+    video.addEventListener('pause', () => {
+      if (applyingVideoSync || !pulseState) return;
+      if (document.hidden && Date.now() - pageHiddenAtMs < 800) {
+        if (pulseState.running) {
+          applyingVideoSync = true;
+          void video.play().finally(() => {
+            window.setTimeout(() => {
+              applyingVideoSync = false;
+            }, 80);
+          });
+        }
+        return;
+      }
+      if (pulseState.running) {
+        if (pulseHandlers?.onPause) pulseHandlers.onPause();
+        else pulseHandlers?.onToggleRun();
+      }
+    });
+  }
+
+  try {
+    await video.play();
+    await video.requestPictureInPicture();
+    return true;
+  } catch {
+    stopVideoPip(true);
+    return false;
+  }
+}
+
+async function closeDocumentSilent() {
   if (!pipWindow) return;
   silentClose = true;
   try {
@@ -420,12 +839,12 @@ async function closeWindowSilent() {
   stopTick();
 }
 
-async function ensureWindow(): Promise<boolean> {
-  if (!pulseState && !driftState) {
-    await closeWindowSilent();
-    return false;
-  }
+async function closeAllSilent() {
+  await closeDocumentSilent();
+  stopVideoPip(true);
+}
 
+async function ensureDocumentWindow(): Promise<boolean> {
   const api = getPipApi();
   if (!api) return false;
 
@@ -436,9 +855,8 @@ async function ensureWindow(): Promise<boolean> {
     return true;
   }
 
-  // Layout changed or no window — (re)open at the right height.
   if (pipWindow && !pipWindow.closed) {
-    await closeWindowSilent();
+    await closeDocumentSilent();
   }
 
   try {
@@ -458,13 +876,7 @@ async function ensureWindow(): Promise<boolean> {
         silentClose = false;
         return;
       }
-      // System closed the shared window — both fall back to in-app bubbles.
-      const p = pulseHandlers;
-      const d = driftHandlers;
-      pulseState = null;
-      driftState = null;
-      p?.onClose();
-      d?.onClose();
+      notifySystemClosed();
     });
     return true;
   } catch {
@@ -474,8 +886,39 @@ async function ensureWindow(): Promise<boolean> {
   }
 }
 
-export function isSuitePipOpen(): boolean {
+async function ensureWindow(): Promise<boolean> {
+  if (!pulseState && !driftState) {
+    await closeAllSilent();
+    return false;
+  }
+
+  // Prefer interactive Document PiP when available (desktop Chrome).
+  if (getPipApi()) {
+    const ok = await ensureDocumentWindow();
+    if (ok) {
+      stopVideoPip(true);
+      return true;
+    }
+  }
+
+  // Android / mobile Chrome — one Video PiP with both stacked.
+  return ensureVideoPip();
+}
+
+function isDocumentSuiteOpen(): boolean {
   return pipWindow != null && !pipWindow.closed;
+}
+
+function isVideoSuiteOpen(): boolean {
+  return (
+    videoPip != null &&
+    typeof document !== 'undefined' &&
+    document.pictureInPictureElement === videoPip.video
+  );
+}
+
+export function isSuitePipOpen(): boolean {
+  return isDocumentSuiteOpen() || isVideoSuiteOpen();
 }
 
 export function isPulseInSuitePip(): boolean {
@@ -507,25 +950,27 @@ export async function suiteOpenDrift(
 export function suiteUpdatePulse(state: SuitePulseState) {
   if (!pulseState && !pulseHandlers) return;
   pulseState = state;
-  if (pipWindow && !pipWindow.closed) {
-    paintPulseRow(pipWindow);
+  if (isDocumentSuiteOpen()) {
+    paintPulseRow(pipWindow!);
     ensureTick();
   }
+  if (isVideoSuiteOpen()) refreshVideoPip();
 }
 
 export function suiteUpdateDrift(state: SuiteDriftState) {
   if (!driftState && !driftHandlers) return;
   driftState = state;
-  if (pipWindow && !pipWindow.closed) {
-    paintDriftRow(pipWindow);
+  if (isDocumentSuiteOpen()) {
+    paintDriftRow(pipWindow!);
   }
+  if (isVideoSuiteOpen()) refreshVideoPip();
 }
 
 export async function suiteClosePulse(): Promise<void> {
   pulseState = null;
   pulseHandlers = null;
   if (!driftState) {
-    await closeWindowSilent();
+    await closeAllSilent();
     return;
   }
   await ensureWindow();
@@ -535,7 +980,7 @@ export async function suiteCloseDrift(): Promise<void> {
   driftState = null;
   driftHandlers = null;
   if (!pulseState) {
-    await closeWindowSilent();
+    await closeAllSilent();
     return;
   }
   await ensureWindow();
@@ -551,4 +996,9 @@ export function setSuiteDriftHandlers(handlers: SuiteDriftHandlers) {
 
 export function canUseSuiteDocumentPip(): boolean {
   return getPipApi() != null;
+}
+
+/** True when suite can open Document PiP or shared Video PiP (Android Chrome). */
+export function canUseSuitePip(): boolean {
+  return canUseSuiteDocumentPip() || canUseVideoPip();
 }

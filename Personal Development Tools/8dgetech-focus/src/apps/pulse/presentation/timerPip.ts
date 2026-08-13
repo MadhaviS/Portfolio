@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 import { PHASE_THEME, formatTimer, type PomodoroPhase } from '../domain/types';
 import {
-  canUseSuiteDocumentPip,
+  canUseSuitePip,
   isPulseInSuitePip,
   setSuitePulseHandlers,
   suiteClosePulse,
@@ -128,7 +128,7 @@ function canUseVideoPip(): boolean {
 }
 
 export function canUseTimerPip(): boolean {
-  return canUseSuiteDocumentPip() || canUseVideoPip();
+  return canUseSuitePip();
 }
 
 export function isTimerPipOpen(): boolean {
@@ -146,6 +146,8 @@ export function setTimerPipHandlers(handlers: PipHandlers) {
     onDismiss: handlers.onDismiss,
     onOpenApp: handlers.onOpenApp,
     onToggleRun: handlers.onToggleRun,
+    onPause: handlers.onPause,
+    onResume: handlers.onResume,
   });
 }
 
@@ -646,27 +648,23 @@ export async function openTimerPip(
   handlers: PipHandlers,
 ): Promise<boolean> {
   handlersRef = handlers;
-  setSuitePulseHandlers({
+  const suiteHandlers = {
     onClose: handlers.onClose,
     onDismiss: handlers.onDismiss,
     onOpenApp: handlers.onOpenApp,
     onToggleRun: handlers.onToggleRun,
-  });
+    onPause: handlers.onPause,
+    onResume: handlers.onResume,
+  };
+  setSuitePulseHandlers(suiteHandlers);
 
-  // Shared Document PiP (stacks with Drift when both minimized)
-  if (canUseSuiteDocumentPip()) {
+  // Shared suite PiP: Document (desktop) or Video (Android Chrome) — stacks with Drift
+  if (canUseSuitePip()) {
     if (videoPip) stopVideoPip(true);
-    const ok = await suiteOpenPulse(state, {
-      onClose: handlers.onClose,
-      onDismiss: handlers.onDismiss,
-      onOpenApp: handlers.onOpenApp,
-      onToggleRun: handlers.onToggleRun,
-    });
-    if (ok) return true;
+    return suiteOpenPulse(state, suiteHandlers);
   }
 
-  // Mobile / no Document PiP — Video PiP fallback
-  return openVideoPip(state, handlers);
+  return false;
 }
 
 export function updateTimerPip(state: PipTimerState) {

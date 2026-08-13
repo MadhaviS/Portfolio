@@ -22,6 +22,7 @@ import {
   DriftPipNavigationBridge,
   useShowDriftBubble,
 } from '../src/apps/drift';
+import { SuiteBubble } from '../src/public/pip/SuiteBubble';
 import { ensureWebFonts, fontBody } from '../src/public/theme/fonts';
 // Future apps: import providers from '../src/apps/<id>' and nest below AuthProvider.
 
@@ -32,12 +33,15 @@ function BubbleOverlay() {
   const showDrift = useShowDriftBubble();
   if (!showPulse && !showDrift) return null;
 
-  const bubbles = (
-    <>
-      {showPulse ? <TimerBubble /> : null}
-      {showDrift ? <DriftBubble /> : null}
-    </>
-  );
+  const bubbles =
+    showPulse && showDrift ? (
+      <SuiteBubble />
+    ) : (
+      <>
+        {showPulse ? <TimerBubble /> : null}
+        {showDrift ? <DriftBubble /> : null}
+      </>
+    );
 
   if (Platform.OS === 'ios') {
     return (

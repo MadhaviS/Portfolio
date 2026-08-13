@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 import { PHASE_THEME } from '../../pulse/domain/types';
 import {
-  canUseSuiteDocumentPip,
+  canUseSuitePip,
   isDriftInSuitePip,
   setSuiteDriftHandlers,
   suiteCloseDrift,
@@ -417,27 +417,22 @@ export async function openDriftPip(
 ): Promise<boolean> {
   handlersRef = handlers;
   lastState = state;
-  setSuiteDriftHandlers({
+  const suiteHandlers = {
     onClose: handlers.onClose,
     onDismiss: handlers.onDismiss,
     onOpenApp: handlers.onOpenApp,
     onCountDrift: handlers.onCountDrift,
     onMarkReturn: handlers.onMarkReturn,
-  });
+  };
+  setSuiteDriftHandlers(suiteHandlers);
 
-  if (canUseSuiteDocumentPip()) {
+  // Shared suite PiP: Document (desktop) or Video (Android Chrome) — stacks with Pulse
+  if (canUseSuitePip()) {
     if (videoPip) stopVideoPip(true);
-    const ok = await suiteOpenDrift(state, {
-      onClose: handlers.onClose,
-      onDismiss: handlers.onDismiss,
-      onOpenApp: handlers.onOpenApp,
-      onCountDrift: handlers.onCountDrift,
-      onMarkReturn: handlers.onMarkReturn,
-    });
-    if (ok) return true;
+    return suiteOpenDrift(state, suiteHandlers);
   }
 
-  return openVideoPip(state, handlers);
+  return false;
 }
 
 export function updateDriftPip(state: PipDriftState) {

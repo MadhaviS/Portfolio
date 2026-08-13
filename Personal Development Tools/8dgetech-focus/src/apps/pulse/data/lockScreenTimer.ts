@@ -253,4 +253,16 @@ export const lockScreenTimer = {
       // ignore
     }
   },
+
+  /** Android: stack Drift into the same sticky notification as Pulse. */
+  async setDriftCompanion(
+    input: {
+      count: number;
+      intention: string;
+      nudgeVisible: boolean;
+    } | null,
+  ) {
+    if (!lockScreenNative || Platform.OS !== 'android') return;
+    await androidLockScreen.setDriftCompanion(input);
+  },
 };

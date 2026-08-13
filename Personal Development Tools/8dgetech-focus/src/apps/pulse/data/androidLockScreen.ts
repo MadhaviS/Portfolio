@@ -38,6 +38,12 @@ let pausedRemaining = 0;
 let currentPhase: PomodoroPhase = 'focus';
 let currentTaskTitle = 'Pulse';
 let sessionMode: 'running' | 'paused' | 'idle' = 'idle';
+/** Drift watch line stacked into the same sticky when both are active. */
+let driftCompanion: {
+  count: number;
+  intention: string;
+  nudgeVisible: boolean;
+} | null = null;
 let permissionAsked = false;
 let overlayPrompted = false;
 let actionWired = false;
@@ -131,6 +137,21 @@ function remainingSeconds(): number {
   return Math.max(0, pausedRemaining);
 }
 
+function driftSuffix(): string {
+  if (!driftCompanion) return '';
+  if (driftCompanion.nudgeVisible) return ' · Drift · come back';
+  const intention = driftCompanion.intention.trim();
+  return intention
+    ? ` · Drift ×${driftCompanion.count} · ${intention}`
+    : ` · Drift ×${driftCompanion.count}`;
+}
+
+function driftChipHint(): string | undefined {
+  if (!driftCompanion) return undefined;
+  if (driftCompanion.nudgeVisible) return 'Back?';
+  return `D${driftCompanion.count}`;
+}
+
 function chronoOptions(
   title: string,
   text: string,
@@ -207,11 +228,13 @@ async function hideService() {
 async function renderRunning() {
   const theme = PHASE_THEME[currentPhase];
   const endsAt = endsAtMs ?? Date.now() + remainingSeconds() * 1000;
+  const left = remainingSeconds();
+  const chip = [formatTimer(left), driftChipHint()].filter(Boolean).join(' · ');
   // Title/text stay static; Android chronometer (when) is the live countdown.
   await present(
     chronoOptions(
       currentTaskTitle,
-      theme.label,
+      `${theme.label}${driftSuffix()}`,
       theme.bg,
       [
         { id: 'pause', title: 'Pause', payload: '/pomodoro' },
@@ -220,7 +243,7 @@ async function renderRunning() {
       {
         endsAt,
         countdown: true,
-        chipText: formatTimer(remainingSeconds()),
+        chipText: chip,
       },
     ),
   );
@@ -229,10 +252,11 @@ async function renderRunning() {
 async function renderPaused() {
   const theme = PHASE_THEME[currentPhase];
   const left = formatTimer(pausedRemaining);
+  const chip = [left, driftChipHint()].filter(Boolean).join(' · ');
   await present(
     chronoOptions(
       left,
-      `${currentTaskTitle} · Paused`,
+      `${currentTaskTitle} · Paused${driftSuffix()}`,
       theme.bg,
       [
         { id: 'resume', title: 'Resume', payload: '/pomodoro' },
@@ -240,7 +264,29 @@ async function renderPaused() {
       ],
       {
         countdown: false,
-        chipText: left,
+        chipText: chip,
+      },
+    ),
+  );
+}
+
+async function renderDriftOnly() {
+  if (!driftCompanion) return;
+  const title = driftCompanion.nudgeVisible
+    ? 'Come back'
+    : `Drift ×${driftCompanion.count}`;
+  const text = driftCompanion.nudgeVisible
+    ? 'Tap Open to return'
+    : driftCompanion.intention.trim() || 'Watching';
+  await present(
+    chronoOptions(
+      title,
+      text,
+      PHASE_THEME.shortBreak.bg,
+      [{ id: 'open', title: 'Open', payload: '/drift' }],
+      {
+        countdown: false,
+        chipText: driftChipHint(),
       },
     ),
   );
@@ -269,7 +315,7 @@ function syncChip() {
 
 async function syncSessionUi() {
   if (!enabled) return;
-  if (sessionMode === 'idle') {
+  if (sessionMode === 'idle' && !driftCompanion) {
     await hideService();
     getChip()?.hide();
     return;
@@ -279,6 +325,8 @@ async function syncSessionUi() {
     await renderRunning();
   } else if (sessionMode === 'paused') {
     await renderPaused();
+  } else if (driftCompanion) {
+    await renderDriftOnly();
   }
   syncChip();
 }
@@ -331,6 +379,20 @@ export const androidLockScreen = {
     endsAtMs = null;
     pausedRemaining = 0;
     sessionMode = 'idle';
+    await syncSessionUi();
+  },
+
+  /** Stack Drift into the same Android sticky / Live Update chip as Pulse. */
+  async setDriftCompanion(
+    input: {
+      count: number;
+      intention: string;
+      nudgeVisible: boolean;
+    } | null,
+  ) {
+    if (!enabled) return;
+    wireAppState();
+    driftCompanion = input;
     await syncSessionUi();
   },
 };

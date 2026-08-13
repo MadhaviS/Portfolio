@@ -9,6 +9,7 @@ import React, {
   type ReactNode,
 } from 'react';
 import { AppState, Platform, type AppStateStatus } from 'react-native';
+import { lockScreenTimer } from '../../pulse/data/lockScreenTimer';
 import { useDriftSession } from './useDriftSession';
 import {
   closeDriftPip,
@@ -111,6 +112,23 @@ export function DriftProvider({ children }: { children: ReactNode }) {
     if (!minimized && !pipOpen) return;
     updateDriftPip(pipState);
   }, [minimized, pipOpen, pipState]);
+
+  // Android lock-screen sticky — stacks with Pulse in one notification.
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    if (!session) {
+      void lockScreenTimer.setDriftCompanion(null);
+      return;
+    }
+    void lockScreenTimer.setDriftCompanion({
+      count: driftCount,
+      intention: session.intention,
+      nudgeVisible,
+    });
+    return () => {
+      void lockScreenTimer.setDriftCompanion(null);
+    };
+  }, [session, driftCount, nudgeVisible]);
 
   useEffect(() => {
     if (Platform.OS !== 'web') return;
