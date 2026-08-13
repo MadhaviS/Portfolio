@@ -3,11 +3,13 @@ import React, { useEffect } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import * as Linking from 'expo-linking';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { FullWindowOverlay } from 'react-native-screens';
 import { ThemeProvider, useTheme } from '../src/core/theme/ThemeProvider';
 import { DoodleBackground } from '../src/core/theme/DoodleBackground';
 import { AuthProvider, useAuth } from '../src/core/auth/AuthProvider';
+import { getSupabase } from '../src/core/supabase/client';
 import {
   PipNavigationBridge,
   PomodoroProvider,
@@ -50,6 +52,29 @@ function AuthBootstrap({ children }: { children: React.ReactNode }) {
       router.replace('/pomodoro');
     }
   }, [ready, isAuthenticated, isGuest, segments, router]);
+
+  // Magic-link / OAuth redirect (free email confirm links)
+  useEffect(() => {
+    const sb = getSupabase();
+    if (!sb) return;
+
+    const handleUrl = async (url: string | null) => {
+      if (!url) return;
+      if (url.includes('access_token') || url.includes('code=')) {
+        try {
+          await sb.auth.exchangeCodeForSession(url);
+        } catch {
+          // ignore — OTP screen still works
+        }
+      }
+    };
+
+    void Linking.getInitialURL().then(handleUrl);
+    const sub = Linking.addEventListener('url', ({ url }) => {
+      void handleUrl(url);
+    });
+    return () => sub.remove();
+  }, []);
 
   if (!ready) {
     return (

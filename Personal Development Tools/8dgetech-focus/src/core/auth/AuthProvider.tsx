@@ -14,6 +14,9 @@ import {
 } from './authStore';
 
 type AuthContextValue = AuthState & {
+  requestEmailOtp: (email: string) => Promise<void>;
+  verifyEmailOtp: (email: string, token: string) => Promise<AuthUser>;
+  updateDisplayName: (name: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<AuthUser>;
   signUp: (email: string, password: string, displayName?: string) => Promise<AuthUser>;
   signInAsGuest: () => Promise<AuthUser>;
@@ -27,6 +30,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => authStore.subscribe(() => setState(authStore.getState())), []);
 
+  const requestEmailOtp = useCallback(
+    (email: string) => authStore.requestEmailOtp(email),
+    [],
+  );
+  const verifyEmailOtp = useCallback(
+    (email: string, token: string) => authStore.verifyEmailOtp(email, token),
+    [],
+  );
+  const updateDisplayName = useCallback(
+    (name: string) => authStore.updateDisplayName(name),
+    [],
+  );
   const signIn = useCallback(
     (email: string, password: string) => authStore.signIn(email, password),
     [],
@@ -42,12 +57,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       ...state,
+      requestEmailOtp,
+      verifyEmailOtp,
+      updateDisplayName,
       signIn,
       signUp,
       signInAsGuest,
       signOut,
     }),
-    [state, signIn, signUp, signInAsGuest, signOut],
+    [
+      state,
+      requestEmailOtp,
+      verifyEmailOtp,
+      updateDisplayName,
+      signIn,
+      signUp,
+      signInAsGuest,
+      signOut,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -26,23 +26,37 @@ const fontBody = Platform.select({
   default: 'System',
 });
 
-/** Same red as Pomodoro focus cards / brand. */
 const ACCENT = PHASE_THEME.focus.bg;
 
-type Mode = 'signin' | 'signup';
+type LocalMode = 'signin' | 'signup';
+type CloudStep = 'email' | 'otp';
 
 export function SignInScreen() {
   const { theme } = useTheme();
   const c = theme.colors;
   const router = useRouter();
   const { height } = useWindowDimensions();
-  const { ready, isAuthenticated, isGuest, signIn, signUp, signInAsGuest } = useAuth();
+  const {
+    ready,
+    isAuthenticated,
+    isGuest,
+    cloudEnabled,
+    requestEmailOtp,
+    verifyEmailOtp,
+    updateDisplayName,
+    signIn,
+    signUp,
+    signInAsGuest,
+  } = useAuth();
 
-  const [mode, setMode] = useState<Mode>('signin');
+  const [localMode, setLocalMode] = useState<LocalMode>('signin');
+  const [cloudStep, setCloudStep] = useState<CloudStep>('email');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [otp, setOtp] = useState('');
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -63,17 +77,51 @@ export function SignInScreen() {
     return <Redirect href="/pomodoro" />;
   }
 
-  const submit = async () => {
+  const afterAccount = async (accountId: string, displayName?: string) => {
+    if (displayName?.trim()) {
+      await updateDisplayName(displayName.trim());
+    }
+    pomodoroRepository.switchUser(accountId);
+    router.replace('/pomodoro');
+  };
+
+  const sendOtp = async () => {
+    setError(null);
+    setInfo(null);
+    setBusy(true);
+    try {
+      await requestEmailOtp(email);
+      setCloudStep('otp');
+      setInfo('Check your email for a 6-digit code (free Supabase mail).');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not send code.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const confirmOtp = async () => {
+    setError(null);
+    setBusy(true);
+    try {
+      const account = await verifyEmailOtp(email, otp);
+      await afterAccount(account.id, name || undefined);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Invalid code.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const submitLocal = async () => {
     setError(null);
     setBusy(true);
     try {
       const account =
-        mode === 'signin'
+        localMode === 'signin'
           ? await signIn(email, password)
           : await signUp(email, password, name || undefined);
-      // Bind workspace now (adopts guest data into empty accounts).
-      pomodoroRepository.switchUser(account.id);
-      router.replace('/pomodoro');
+      await afterAccount(account.id);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong.');
     } finally {
@@ -143,68 +191,79 @@ export function SignInScreen() {
             contentContainerStyle={styles.cardBody}
           >
             <Text style={[styles.title, { color: c.onSurface, fontFamily: fontDisplay }]}>
-              {mode === 'signin' ? 'Welcome back' : 'Create your account'}
+              {cloudEnabled
+                ? cloudStep === 'email'
+                  ? 'Sign in with email'
+                  : 'Enter verification code'
+                : localMode === 'signin'
+                  ? 'Welcome back'
+                  : 'Create your account'}
             </Text>
             <Text style={[styles.sub, { color: c.onSurfaceMuted, fontFamily: fontBody }]}>
-              Optional — use the timer freely, or sign in to keep an account on this device.
+              {cloudEnabled
+                ? 'Free verified email login. No password. Phone OTP comes later (SMS costs money).'
+                : 'Cloud auth not configured yet — local device account. Add Supabase keys to .env for free email OTP.'}
             </Text>
 
-            <View style={styles.tabs}>
-              <Pressable
-                onPress={() => {
-                  setMode('signin');
-                  setError(null);
-                }}
-                style={[
-                  styles.tab,
-                  {
-                    borderColor: mode === 'signin' ? ACCENT : c.border,
-                    backgroundColor: mode === 'signin' ? ACCENT : 'transparent',
-                  },
-                ]}
-              >
-                <Text
+            {!cloudEnabled ? (
+              <View style={styles.tabs}>
+                <Pressable
+                  onPress={() => {
+                    setLocalMode('signin');
+                    setError(null);
+                  }}
                   style={[
-                    styles.tabText,
+                    styles.tab,
                     {
-                      color: mode === 'signin' ? '#FFFFFF' : c.onSurfaceMuted,
-                      fontFamily: fontBody,
+                      borderColor: localMode === 'signin' ? ACCENT : c.border,
+                      backgroundColor: localMode === 'signin' ? ACCENT : 'transparent',
                     },
                   ]}
                 >
-                  Sign in
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => {
-                  setMode('signup');
-                  setError(null);
-                }}
-                style={[
-                  styles.tab,
-                  {
-                    borderColor: mode === 'signup' ? ACCENT : c.border,
-                    backgroundColor: mode === 'signup' ? ACCENT : 'transparent',
-                  },
-                ]}
-              >
-                <Text
+                  <Text
+                    style={[
+                      styles.tabText,
+                      {
+                        color: localMode === 'signin' ? '#FFFFFF' : c.onSurfaceMuted,
+                        fontFamily: fontBody,
+                      },
+                    ]}
+                  >
+                    Sign in
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => {
+                    setLocalMode('signup');
+                    setError(null);
+                  }}
                   style={[
-                    styles.tabText,
+                    styles.tab,
                     {
-                      color: mode === 'signup' ? '#FFFFFF' : c.onSurfaceMuted,
-                      fontFamily: fontBody,
+                      borderColor: localMode === 'signup' ? ACCENT : c.border,
+                      backgroundColor: localMode === 'signup' ? ACCENT : 'transparent',
                     },
                   ]}
                 >
-                  Create account
-                </Text>
-              </Pressable>
-            </View>
+                  <Text
+                    style={[
+                      styles.tabText,
+                      {
+                        color: localMode === 'signup' ? '#FFFFFF' : c.onSurfaceMuted,
+                        fontFamily: fontBody,
+                      },
+                    ]}
+                  >
+                    Create account
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null}
 
-            {mode === 'signup' ? (
+            {(!cloudEnabled && localMode === 'signup') ||
+            (cloudEnabled && cloudStep === 'email') ? (
               <Field
-                label="Name"
+                label="Name (optional)"
                 value={name}
                 onChangeText={setName}
                 placeholder="Your name"
@@ -220,15 +279,38 @@ export function SignInScreen() {
               keyboardType="email-address"
               autoCapitalize="none"
               autoComplete="email"
+              editable={!(cloudEnabled && cloudStep === 'otp')}
             />
-            <Field
-              label="Password"
-              value={password}
-              onChangeText={setPassword}
-              placeholder={mode === 'signup' ? 'At least 6 characters' : 'Your password'}
-              secureTextEntry
-              autoComplete={mode === 'signup' ? 'new-password' : 'password'}
-            />
+
+            {cloudEnabled && cloudStep === 'otp' ? (
+              <Field
+                label="6-digit code"
+                value={otp}
+                onChangeText={setOtp}
+                placeholder="123456"
+                keyboardType="number-pad"
+                autoComplete="one-time-code"
+              />
+            ) : null}
+
+            {!cloudEnabled ? (
+              <Field
+                label="Password"
+                value={password}
+                onChangeText={setPassword}
+                placeholder={
+                  localMode === 'signup' ? 'At least 6 characters' : 'Your password'
+                }
+                secureTextEntry
+                autoComplete={localMode === 'signup' ? 'new-password' : 'password'}
+              />
+            ) : null}
+
+            {info ? (
+              <Text style={[styles.info, { color: c.onSurfaceMuted, fontFamily: fontBody }]}>
+                {info}
+              </Text>
+            ) : null}
 
             {error ? (
               <Text style={[styles.error, { color: ACCENT, fontFamily: fontBody }]}>
@@ -237,7 +319,13 @@ export function SignInScreen() {
             ) : null}
 
             <Pressable
-              onPress={submit}
+              onPress={
+                cloudEnabled
+                  ? cloudStep === 'email'
+                    ? sendOtp
+                    : confirmOtp
+                  : submitLocal
+              }
               disabled={busy}
               style={({ pressed }) => [
                 styles.primaryBtn,
@@ -253,10 +341,41 @@ export function SignInScreen() {
                 <Text
                   style={[styles.primaryLabel, { color: '#FFFFFF', fontFamily: fontBody }]}
                 >
-                  {mode === 'signin' ? 'Sign in' : 'Create account'}
+                  {cloudEnabled
+                    ? cloudStep === 'email'
+                      ? 'Send code'
+                      : 'Verify & continue'
+                    : localMode === 'signin'
+                      ? 'Sign in'
+                      : 'Create account'}
                 </Text>
               )}
             </Pressable>
+
+            {cloudEnabled && cloudStep === 'otp' ? (
+              <Pressable
+                onPress={() => {
+                  setCloudStep('email');
+                  setOtp('');
+                  setInfo(null);
+                  setError(null);
+                }}
+                disabled={busy}
+                style={({ pressed }) => [
+                  styles.ghostBtn,
+                  {
+                    borderColor: c.border,
+                    opacity: busy ? 0.45 : pressed ? 0.85 : 1,
+                  },
+                ]}
+              >
+                <Text
+                  style={[styles.ghostLabel, { color: c.onSurface, fontFamily: fontBody }]}
+                >
+                  Use a different email
+                </Text>
+              </Pressable>
+            ) : null}
 
             <Pressable
               onPress={continueAsGuest}
@@ -275,7 +394,9 @@ export function SignInScreen() {
             </Pressable>
 
             <Text style={[styles.footnote, { color: c.onSurfaceMuted, fontFamily: fontBody }]}>
-              Accounts stay on this device for now. You can keep using Pomodoro without signing in.
+              {cloudEnabled
+                ? 'Verified accounts sync tasks & sessions to free Supabase. Admin: set role=admin in profiles table.'
+                : 'Copy .env.example → .env, create a free Supabase project, run supabase/schema.sql, restart Expo.'}
             </Text>
           </ScrollView>
         </View>
@@ -307,6 +428,7 @@ function Field({
             borderColor: c.border,
             backgroundColor: c.background,
             fontFamily: fontBody,
+            opacity: props.editable === false ? 0.7 : 1,
           },
         ]}
       />
@@ -414,6 +536,11 @@ const styles = StyleSheet.create({
   error: {
     fontSize: 13,
     fontWeight: '600',
+  },
+  info: {
+    fontSize: 13,
+    fontWeight: '500',
+    lineHeight: 18,
   },
   primaryBtn: {
     marginTop: 4,

@@ -4,6 +4,11 @@ import {
   storageRemove,
   storageSet,
 } from '../../../core/storage/webStorage';
+import {
+  pullAndMergeWorkspace,
+  schedulePushWorkspace,
+} from '../../../core/supabase/sync';
+import { isSupabaseConfigured } from '../../../core/supabase/client';
 import type {
   PomodoroSession,
   PomodoroSettings,
@@ -93,6 +98,14 @@ function persist(): void {
   writeJson(keys.sessions, sessions);
   writeJson(keys.tasks, tasks);
   writeJson(keys.activeTask, activeTaskId);
+  if (isSupabaseConfigured() && boundUserId !== 'local-guest') {
+    schedulePushWorkspace(boundUserId, () => ({
+      settings,
+      tasks,
+      sessions,
+      activeTaskId,
+    }));
+  }
 }
 
 function emptyWorkspace(): void {
@@ -331,6 +344,24 @@ export const pomodoroRepository = {
     }
 
     emit();
+
+    if (userId !== 'local-guest' && isSupabaseConfigured()) {
+      void (async () => {
+        const merged = await pullAndMergeWorkspace(userId, {
+          settings,
+          tasks,
+          sessions,
+          activeTaskId,
+        });
+        if (boundUserId !== userId) return;
+        settings = merged.settings;
+        tasks = merged.tasks;
+        sessions = merged.sessions;
+        activeTaskId = merged.activeTaskId;
+        persist();
+        emit();
+      })();
+    }
   },
 
   /** Wipe current user's stored pomodoro data (used after logout → guest). */

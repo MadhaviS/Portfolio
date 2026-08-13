@@ -1,9 +1,17 @@
 import { storageGet, storageRemove, storageSet } from '../storage/webStorage';
+import {
+  authRedirectTo,
+  getSupabase,
+  isSupabaseConfigured,
+} from '../supabase/client';
 
 export type AuthUser = {
   id: string;
   email: string;
   displayName: string;
+  /** True when using free Supabase email OTP (verified). */
+  emailVerified?: boolean;
+  provider?: 'local' | 'supabase';
 };
 
 export type AuthState = {
@@ -11,6 +19,8 @@ export type AuthState = {
   isGuest: boolean;
   isAuthenticated: boolean;
   ready: boolean;
+  /** Free cloud auth available (env configured). */
+  cloudEnabled: boolean;
 };
 
 type StoredAccount = {
@@ -30,6 +40,7 @@ const GUEST: AuthUser = {
   id: 'local-guest',
   email: 'guest@local',
   displayName: 'Guest',
+  provider: 'local',
 };
 
 type Listener = () => void;
@@ -37,6 +48,7 @@ type Listener = () => void;
 let currentUser: AuthUser | null = null;
 let ready = false;
 const listeners = new Set<Listener>();
+let authListenerBound = false;
 
 function emit() {
   listeners.forEach((l) => l());
@@ -103,14 +115,12 @@ async function hashPassword(password: string): Promise<string> {
       .map((b) => b.toString(16).padStart(2, '0'))
       .join('');
   }
-  // Fallback (non-web runtimes without SubtleCrypto)
   let h = 0;
   const s = `8dgetech:${password}`;
   for (let i = 0; i < s.length; i++) h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
   return `fallback_${h}`;
 }
 
-/** Accept passwords hashed with the old eightedge salt. */
 async function hashPasswordLegacy(password: string): Promise<string> {
   if (
     typeof globalThis !== 'undefined' &&
@@ -138,19 +148,70 @@ function displayNameFromEmail(email: string): string {
   return local.charAt(0).toUpperCase() + local.slice(1);
 }
 
+function userFromSupabase(
+  id: string,
+  email: string | undefined,
+  meta?: Record<string, unknown> | null,
+  verified?: boolean,
+): AuthUser {
+  const em = (email ?? '').toLowerCase();
+  const name =
+    (typeof meta?.display_name === 'string' && meta.display_name) ||
+    displayNameFromEmail(em || 'user');
+  return {
+    id,
+    email: em,
+    displayName: name,
+    emailVerified: !!verified,
+    provider: 'supabase',
+  };
+}
+
 function getState(): AuthState {
   return {
     user: currentUser,
     isGuest: !!currentUser && currentUser.id === 'local-guest',
     isAuthenticated: !!currentUser,
     ready,
+    cloudEnabled: isSupabaseConfigured(),
   };
+}
+
+function applyUser(user: AuthUser | null) {
+  currentUser = user;
+  writeSession(user);
+  emit();
+}
+
+function bindSupabaseAuthListener() {
+  const sb = getSupabase();
+  if (!sb || authListenerBound) return;
+  authListenerBound = true;
+  sb.auth.onAuthStateChange((_event, session) => {
+    if (!session?.user) {
+      if (currentUser?.provider === 'supabase') {
+        applyUser(GUEST);
+      }
+      return;
+    }
+    const u = session.user;
+    applyUser(
+      userFromSupabase(
+        u.id,
+        u.email,
+        u.user_metadata as Record<string, unknown>,
+        !!u.email_confirmed_at,
+      ),
+    );
+  });
 }
 
 export const authStore = {
   subscribe(listener: Listener) {
     listeners.add(listener);
-    return () => listeners.delete(listener);
+    return () => {
+      listeners.delete(listener);
+    };
   },
 
   getState,
@@ -159,16 +220,121 @@ export const authStore = {
     return currentUser?.id ?? 'local-guest';
   },
 
+  isCloudEnabled(): boolean {
+    return isSupabaseConfigured();
+  },
+
   hydrate() {
     if (ready) return getState();
     migrateAuthKeys();
+    bindSupabaseAuthListener();
+
+    const sb = getSupabase();
+    if (sb) {
+      void sb.auth.getSession().then(({ data }) => {
+        if (data.session?.user) {
+          const u = data.session.user;
+          applyUser(
+            userFromSupabase(
+              u.id,
+              u.email,
+              u.user_metadata as Record<string, unknown>,
+              !!u.email_confirmed_at,
+            ),
+          );
+        } else if (!currentUser) {
+          applyUser(readSession() ?? GUEST);
+        }
+        ready = true;
+        emit();
+      });
+      // Optimistic local session while network resolves
+      currentUser = readSession() ?? GUEST;
+      ready = true;
+      emit();
+      return getState();
+    }
+
     currentUser = readSession() ?? GUEST;
     ready = true;
     emit();
     return getState();
   },
 
+  /** Free: send email OTP (creates user if new). */
+  async requestEmailOtp(email: string): Promise<void> {
+    const sb = getSupabase();
+    if (!sb) {
+      throw new Error(
+        'Cloud auth is not configured. Add EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY to .env',
+      );
+    }
+    const normalized = normalizeEmail(email);
+    if (!normalized.includes('@')) {
+      throw new Error('Enter a valid email address.');
+    }
+    const { error } = await sb.auth.signInWithOtp({
+      email: normalized,
+      options: {
+        shouldCreateUser: true,
+        emailRedirectTo: authRedirectTo(),
+      },
+    });
+    if (error) throw new Error(error.message);
+  },
+
+  /** Free: verify 6-digit code from email. */
+  async verifyEmailOtp(email: string, token: string): Promise<AuthUser> {
+    const sb = getSupabase();
+    if (!sb) {
+      throw new Error('Cloud auth is not configured.');
+    }
+    const normalized = normalizeEmail(email);
+    const code = token.trim();
+    if (code.length < 6) {
+      throw new Error('Enter the 6-digit code from your email.');
+    }
+    const { data, error } = await sb.auth.verifyOtp({
+      email: normalized,
+      token: code,
+      type: 'email',
+    });
+    if (error) throw new Error(error.message);
+    const u = data.user ?? data.session?.user;
+    if (!u) throw new Error('Verification failed. Try again.');
+    const user = userFromSupabase(
+      u.id,
+      u.email,
+      u.user_metadata as Record<string, unknown>,
+      !!u.email_confirmed_at,
+    );
+    applyUser(user);
+    return user;
+  },
+
+  async updateDisplayName(displayName: string): Promise<void> {
+    const name = displayName.trim();
+    if (!name || !currentUser || currentUser.id === 'local-guest') return;
+    currentUser = { ...currentUser, displayName: name };
+    writeSession(currentUser);
+    emit();
+    const sb = getSupabase();
+    if (sb && currentUser.provider === 'supabase') {
+      await sb.auth.updateUser({ data: { display_name: name } });
+      await sb.from('profiles').upsert({
+        id: currentUser.id,
+        display_name: name,
+        email: currentUser.email,
+        updated_at: new Date().toISOString(),
+      });
+    }
+  },
+
+  /** Local-only fallback when Supabase env is missing. */
   async signIn(email: string, password: string): Promise<AuthUser> {
+    if (isSupabaseConfigured()) {
+      throw new Error('Use the email code sign-in (OTP) instead of a password.');
+    }
     const normalized = normalizeEmail(email);
     if (!normalized || !password) {
       throw new Error('Email and password are required.');
@@ -189,23 +355,25 @@ export const authStore = {
       throw new Error('Incorrect password.');
     }
 
-    // Upgrade legacy password hashes to the new salt.
     if (found.passwordHash === legacyHash && hash !== legacyHash) {
       found.passwordHash = hash;
       writeAccounts(accounts);
     }
 
-    currentUser = {
+    const user: AuthUser = {
       id: found.id,
       email: found.email,
       displayName: found.displayName,
+      provider: 'local',
     };
-    writeSession(currentUser);
-    emit();
-    return currentUser;
+    applyUser(user);
+    return user;
   },
 
   async signUp(email: string, password: string, displayName?: string): Promise<AuthUser> {
+    if (isSupabaseConfigured()) {
+      throw new Error('Use the email code sign-in (OTP) to create an account.');
+    }
     const normalized = normalizeEmail(email);
     if (!normalized || !password) {
       throw new Error('Email and password are required.');
@@ -226,6 +394,7 @@ export const authStore = {
       id: `user_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       email: normalized,
       displayName: (displayName || displayNameFromEmail(normalized)).trim(),
+      provider: 'local',
     };
 
     accounts.push({
@@ -234,28 +403,28 @@ export const authStore = {
       createdAt: new Date().toISOString(),
     });
     writeAccounts(accounts);
-
-    currentUser = user;
-    writeSession(currentUser);
-    emit();
-    return currentUser;
+    applyUser(user);
+    return user;
   },
 
   async signInAsGuest(): Promise<AuthUser> {
-    currentUser = GUEST;
-    writeSession(currentUser);
-    emit();
+    const sb = getSupabase();
+    if (sb && currentUser?.provider === 'supabase') {
+      await sb.auth.signOut();
+    }
+    applyUser(GUEST);
     return GUEST;
   },
 
   async signOut(): Promise<void> {
-    currentUser = null;
-    writeSession(null);
-    emit();
+    const sb = getSupabase();
+    if (sb) {
+      await sb.auth.signOut();
+    }
+    applyUser(null);
   },
 };
 
-/** Back-compat for repositories */
 export const authStub = {
   getState: () => authStore.getState(),
   getUserId: () => authStore.getUserId(),
