@@ -30,8 +30,8 @@ import {
   IconTomatoClock,
 } from '../../core/theme/LineIcons';
 
-const DOODLE_BG_LIGHT = require('../../../assets/landing-doodles-bg-light.png');
-const DOODLE_BG_DARK = require('../../../assets/landing-doodles-bg-dark.png');
+const DOODLE_BG_LIGHT = require('../../../assets/landing-doodles-bg-light.jpg');
+const DOODLE_BG_DARK = require('../../../assets/landing-doodles-bg-dark.jpg');
 
 const FEATURES = [
   {

@@ -12,7 +12,7 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
+import Feather from '@expo/vector-icons/Feather';
 import {
   ALARM_SOUND_OPTIONS,
   DEFAULT_SETTINGS,
@@ -25,7 +25,7 @@ import {
   type PomodoroSettings,
   type PomodoroTask,
 } from '../domain/types';
-import { usePomodoroTimer } from './usePomodoroTimer';
+import { usePomodoro } from './PomodoroProvider';
 import { HowItWorksTour } from './HowItWorksTour';
 import { useHowItWorksTour } from './useHowItWorksTour';
 import { ReportModal } from './ReportModal';
@@ -37,8 +37,24 @@ import { IconGear, IconMoon, IconSun } from '../../../core/theme/LineIcons';
 import { previewSound } from '../data/pomodoroAudio';
 
 const MODES: PomodoroPhase[] = ['focus', 'shortBreak', 'longBreak'];
-const DOODLE_BG_LIGHT = require('../../../../assets/pomodoro-doodles-bg-light.png');
-const DOODLE_BG_DARK = require('../../../../assets/landing-doodles-bg-dark.png');
+const DOODLE_BG = {
+  focus: {
+    light: require('../../../../assets/pomodoro-doodles-bg-focus-light.jpg'),
+    dark: require('../../../../assets/pomodoro-doodles-bg-focus-dark.jpg'),
+  },
+  shortBreak: {
+    light: require('../../../../assets/pomodoro-doodles-bg-short-break.jpg'),
+    dark: require('../../../../assets/pomodoro-doodles-bg-short-break-dark.jpg'),
+  },
+  longBreak: {
+    light: require('../../../../assets/pomodoro-doodles-bg-long-break.jpg'),
+    dark: require('../../../../assets/pomodoro-doodles-bg-long-break-dark.jpg'),
+  },
+} as const;
+
+function doodleForPhase(phase: PomodoroPhase, isLight: boolean) {
+  return DOODLE_BG[phase][isLight ? 'light' : 'dark'];
+}
 
 export function PomodoroScreen() {
   const {
@@ -46,6 +62,7 @@ export function PomodoroScreen() {
     remaining,
     progress,
     running,
+    isPartial,
     settings,
     stats,
     tasks,
@@ -62,7 +79,8 @@ export function PomodoroScreen() {
     selectTask,
     toggleTaskDone,
     deleteTask,
-  } = usePomodoroTimer();
+    minimize,
+  } = usePomodoro();
 
   const router = useRouter();
   const { theme: appTheme, resolved, toggleLightDark } = useTheme();
@@ -75,25 +93,44 @@ export function PomodoroScreen() {
   const theme = PHASE_THEME[phase];
   const isLight = resolved === 'light';
   const c = appTheme.colors;
-  /** Light theme follows pomofocus: solid phase color + frosted panels + white chrome. */
-  const pageBg = isLight ? theme.bg : c.background;
-  const panelBg = isLight ? 'rgba(255,255,255,0.1)' : theme.bg;
+  /**
+   * Light: darker phase page (doodles visible) + lighter frosted cards.
+   * Dark: solid phase-colored cards on soft dark wash.
+   */
+  const pageBg = isLight ? theme.pageLight : theme.pageDark;
+  const panelBg = isLight ? theme.panelLight : theme.bg;
   const chromeInk = isLight ? '#FFFFFF' : c.onSurface;
-  const chromeMuted = isLight ? 'rgba(255,255,255,0.75)' : c.onSurfaceMuted;
+  const chromeMuted = isLight
+    ? 'rgba(255,255,255,0.78)'
+    : c.onSurfaceMuted;
   const chromeBtnBg = isLight
-    ? 'rgba(255,255,255,0.14)'
+    ? 'rgba(255,255,255,0.16)'
     : 'rgba(255,248,242,0.08)';
-  const chromeBorder = isLight ? 'rgba(255,255,255,0.22)' : c.border;
-  const isPartial = remaining > 0 && remaining < durationForPhaseSeconds(settings, phase);
-
-  useEffect(() => {
-    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
-    const prev = document.title;
-    document.title = `${formatTimer(remaining)} — ${PHASE_THEME[phase].label}`;
-    return () => {
-      document.title = prev;
-    };
-  }, [remaining, phase]);
+  const chromeBorder = isLight
+    ? 'rgba(255,255,255,0.28)'
+    : c.border;
+  const brandColor = '#FFFFFF';
+  const onPanel = isLight ? '#1A1C20' : '#FFFFFF';
+  const onPanelMuted = isLight ? '#5C5854' : 'rgba(255,255,255,0.78)';
+  const tabActiveBg = isLight ? theme.bg : 'rgba(0,0,0,0.22)';
+  const tabText = isLight ? '#3D3A36' : '#FFFFFF';
+  const progressTrack = isLight ? 'rgba(26,28,32,0.1)' : 'rgba(0,0,0,0.18)';
+  const progressFill = isLight ? theme.bg : 'rgba(255,255,255,0.9)';
+  const tasksRule = isLight ? 'rgba(26,28,32,0.12)' : 'rgba(255,255,255,0.9)';
+  const addTaskBorder = isLight ? `${theme.bg}66` : 'rgba(255,255,255,0.35)';
+  const addTaskBg = isLight ? `${theme.bg}14` : 'rgba(0,0,0,0.12)';
+  const panelShadow = isLight
+    ? Platform.select({
+        web: { boxShadow: '0 14px 34px rgba(0,0,0,0.18)' } as object,
+        default: {
+          elevation: 5,
+          shadowColor: '#000',
+          shadowOpacity: 0.18,
+          shadowRadius: 16,
+          shadowOffset: { width: 0, height: 6 },
+        },
+      })
+    : null;
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return;
@@ -116,13 +153,35 @@ export function PomodoroScreen() {
       >
         <View style={styles.topBar}>
           <Pressable
-            onPress={() => router.push('/')}
+            onPress={() => {
+              if (running || isPartial) minimize();
+              router.navigate('/');
+            }}
             hitSlop={8}
             accessibilityLabel="Back to home"
           >
-            <Text style={[styles.brand, { color: chromeInk }]}>Pomodoro</Text>
+            <Text style={[styles.brand, { color: brandColor }]}>Pomodoro</Text>
           </Pressable>
           <View style={styles.topActions}>
+            {running || isPartial ? (
+              <Pressable
+                onPress={() => {
+                  minimize();
+                  router.navigate('/');
+                }}
+                accessibilityLabel="Pop timer out. On desktop Chrome it floats over other windows. Drag to × to close."
+                style={({ pressed }) => [
+                  styles.iconAction,
+                  {
+                    backgroundColor: chromeBtnBg,
+                    borderColor: chromeBorder,
+                    opacity: pressed ? 0.7 : 1,
+                  },
+                ]}
+              >
+                <Feather name="minimize-2" size={16} color={chromeInk} />
+              </Pressable>
+            ) : null}
             <Pressable
               onPress={() => setSettingsOpen(true)}
               accessibilityLabel="Settings"
@@ -171,7 +230,13 @@ export function PomodoroScreen() {
           </View>
         </View>
 
-        <View style={[styles.timerCard, { backgroundColor: panelBg }]}>
+        <View
+          style={[
+            styles.timerCard,
+            { backgroundColor: panelBg },
+            panelShadow,
+          ]}
+        >
           <View style={styles.modeTabs}>
             {MODES.map((mode) => {
               const active = mode === phase;
@@ -179,9 +244,22 @@ export function PomodoroScreen() {
                 <Pressable
                   key={mode}
                   onPress={() => selectPhase(mode)}
-                  style={[styles.modeTab, active && styles.modeTabActive]}
+                  style={[
+                    styles.modeTab,
+                    active && {
+                      backgroundColor: tabActiveBg,
+                    },
+                  ]}
                 >
-                  <Text style={styles.modeTabText}>
+                  <Text
+                    style={[
+                      styles.modeTabText,
+                      {
+                        color:
+                          active && isLight ? '#FFFFFF' : tabText,
+                      },
+                    ]}
+                  >
                     {PHASE_THEME[mode].label}
                   </Text>
                 </Pressable>
@@ -189,21 +267,31 @@ export function PomodoroScreen() {
             })}
           </View>
 
-          <Text style={styles.timerText}>{formatTimer(remaining)}</Text>
+          <Text style={[styles.timerText, { color: onPanel }]}>
+            {formatTimer(remaining)}
+          </Text>
 
-          <View style={styles.progressTrack}>
+          <View style={[styles.progressTrack, { backgroundColor: progressTrack }]}>
             <View
-              style={[styles.progressFill, { width: `${progress * 100}%` }]}
+              style={[
+                styles.progressFill,
+                {
+                  width: `${progress * 100}%`,
+                  backgroundColor: progressFill,
+                },
+              ]}
             />
           </View>
 
           {activeTask && !activeTask.done ? (
-            <Text style={styles.workingOn} numberOfLines={1}>
+            <Text style={[styles.workingOn, { color: onPanelMuted }]} numberOfLines={1}>
               #{tasks.findIndex((t) => t.id === activeTask.id) + 1}{' '}
               {activeTask.title}
             </Text>
           ) : (
-            <Text style={styles.workingOn}>Time to focus!</Text>
+            <Text style={[styles.workingOn, { color: onPanelMuted }]}>
+              Time to focus!
+            </Text>
           )}
 
           <Pressable
@@ -219,19 +307,37 @@ export function PomodoroScreen() {
           </Pressable>
 
           <Pressable onPress={reset} style={styles.skipLink}>
-            <Text style={styles.skipText}>Reset</Text>
+            <Text style={[styles.skipText, { color: onPanelMuted }]}>Reset</Text>
           </Pressable>
         </View>
 
-        <View style={[styles.tasksCard, { backgroundColor: panelBg }]}>
-          <View style={styles.tasksHeader}>
-            <Text style={styles.tasksTitle}>Tasks</Text>
+        <View
+          style={[
+            styles.tasksCard,
+            { backgroundColor: panelBg },
+            panelShadow,
+          ]}
+        >
+          <View
+            style={[
+              styles.tasksHeader,
+              { borderBottomColor: tasksRule },
+            ]}
+          >
+            <Text style={[styles.tasksTitle, { color: onPanel }]}>Tasks</Text>
             <Pressable
               accessibilityLabel="Task options"
-              style={styles.tasksMenuBtn}
+              style={[
+                styles.tasksMenuBtn,
+                isLight && styles.tasksMenuBtnLight,
+              ]}
               hitSlop={6}
             >
-              <Feather name="more-vertical" size={16} color="#fff" />
+              <Feather
+                name="more-vertical"
+                size={16}
+                color={isLight ? '#666' : '#fff'}
+              />
             </Pressable>
           </View>
 
@@ -241,6 +347,7 @@ export function PomodoroScreen() {
                 key={task.id}
                 task={task}
                 active={task.id === activeTaskId}
+                accent={theme.bg}
                 onSelect={() => selectTask(task.id)}
                 onToggle={() => toggleTaskDone(task.id)}
                 onEdit={() => {
@@ -258,17 +365,33 @@ export function PomodoroScreen() {
             }}
             style={({ pressed }) => [
               styles.addTaskBtn,
-              { opacity: pressed ? 0.88 : 1 },
+              {
+                borderColor: addTaskBorder,
+                backgroundColor: addTaskBg,
+                opacity: pressed ? 0.88 : 1,
+              },
             ]}
           >
-            <Text style={styles.addTaskBtnText}>+ Add Task</Text>
+            <Text style={[styles.addTaskBtnText, { color: theme.bg }]}>
+              + Add Task
+            </Text>
           </Pressable>
         </View>
 
-        <View style={[styles.finishCard, { backgroundColor: panelBg }]}>
-          <Text style={styles.finishLabel}>Est. finish</Text>
-          <Text style={styles.finishValue}>{formatFinishClock(finishAt)}</Text>
-          <Text style={styles.finishHint}>
+        <View
+          style={[
+            styles.finishCard,
+            { backgroundColor: panelBg },
+            panelShadow,
+          ]}
+        >
+          <Text style={[styles.finishLabel, { color: onPanelMuted }]}>
+            Est. finish
+          </Text>
+          <Text style={[styles.finishValue, { color: onPanel }]}>
+            {formatFinishClock(finishAt)}
+          </Text>
+          <Text style={[styles.finishHint, { color: onPanelMuted }]}>
             Based on open task estimates · {formatMinutesShort(stats.focusMinutesToday)}{' '}
             focused today
           </Text>
@@ -333,9 +456,9 @@ export function PomodoroScreen() {
 
   return (
     <ImageBackground
-      source={isLight ? DOODLE_BG_LIGHT : DOODLE_BG_DARK}
+      source={doodleForPhase(phase, isLight)}
       style={[styles.root, { backgroundColor: pageBg }]}
-      imageStyle={styles.bgImage}
+      imageStyle={[styles.bgImage, styles.bgImageDoodle]}
       resizeMode="cover"
     >
       {chrome}
@@ -346,12 +469,14 @@ export function PomodoroScreen() {
 function TaskRow({
   task,
   active,
+  accent,
   onSelect,
   onToggle,
   onEdit,
 }: {
   task: PomodoroTask;
   active: boolean;
+  accent: string;
   onSelect: () => void;
   onToggle: () => void;
   onEdit: () => void;
@@ -364,13 +489,24 @@ function TaskRow({
           styles.taskCard,
           active && styles.taskCardActive,
           task.done && styles.taskCardDone,
+          { backgroundColor: '#F6F3EE', borderColor: 'rgba(26,28,32,0.06)' },
         ]}
       >
-        <View style={[styles.taskAccent, active && styles.taskAccentOn]} />
+        <View
+          style={[
+            styles.taskAccent,
+            active && { backgroundColor: accent },
+          ]}
+        />
         <View style={styles.taskCardInner}>
           <View style={styles.taskMainRow}>
             <Pressable onPress={onToggle} hitSlop={8} style={styles.checkHit}>
-              <View style={[styles.check, task.done && styles.checkOn]}>
+              <View
+                style={[
+                  styles.check,
+                  task.done && { backgroundColor: accent, borderColor: accent },
+                ]}
+              >
                 {task.done ? (
                   <Feather name="check" size={14} color="#FFFFFF" />
                 ) : null}
@@ -1223,24 +1359,14 @@ function ToggleRow({
   );
 }
 
-function durationForPhaseSeconds(
-  settings: PomodoroSettings,
-  phase: PomodoroPhase,
-): number {
-  const minutes =
-    phase === 'focus'
-      ? settings.focusMinutes
-      : phase === 'shortBreak'
-        ? settings.shortBreakMinutes
-        : settings.longBreakMinutes;
-  return minutes * 60;
-}
-
 const styles = StyleSheet.create({
   root: { flex: 1, width: '100%', overflow: 'hidden' },
   bgImage: {
     width: '100%',
     height: '100%',
+  },
+  bgImageDoodle: {
+    opacity: 0.9,
   },
   scrollContent: {
     paddingHorizontal: 20,
@@ -1322,12 +1448,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.22)',
   },
   modeTabText: {
-    color: '#fff',
     fontSize: 13,
     fontWeight: '600',
   },
+  modeTabTextOnDark: {
+    color: '#FFFFFF',
+  },
   timerText: {
-    color: '#fff',
     fontSize: 92,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
@@ -1337,17 +1464,14 @@ const styles = StyleSheet.create({
   progressTrack: {
     width: '80%',
     height: 4,
-    backgroundColor: 'rgba(0,0,0,0.18)',
     borderRadius: 4,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: 'rgba(255,255,255,0.9)',
     borderRadius: 4,
   },
   workingOn: {
-    color: 'rgba(255,255,255,0.92)',
     fontSize: 15,
     fontWeight: '500',
     textAlign: 'center',
@@ -1367,7 +1491,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1.2,
   },
   skipLink: { padding: 6 },
-  skipText: { color: 'rgba(255,255,255,0.75)', fontSize: 13 },
+  skipText: { fontSize: 13 },
   tasksCard: {
     marginTop: 22,
     borderRadius: 18,
@@ -1382,9 +1506,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingBottom: 10,
     borderBottomWidth: 2,
-    borderBottomColor: 'rgba(255,255,255,0.9)',
   },
-  tasksTitle: { color: '#fff', fontSize: 18, fontWeight: '700' },
+  tasksTitle: { fontSize: 18, fontWeight: '700' },
   tasksMenuBtn: {
     width: 32,
     height: 32,
@@ -1392,6 +1515,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.16)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  tasksMenuBtnLight: {
+    backgroundColor: 'rgba(26,28,32,0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(26,28,32,0.08)',
   },
   taskList: { gap: 10 },
   taskCardWrap: {
@@ -1404,6 +1532,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     flexDirection: 'row',
     minHeight: 56,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   taskCardActive: {},
   taskCardDone: {
@@ -1439,8 +1569,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   checkOn: {
-    backgroundColor: '#C64642',
-    borderColor: '#C64642',
+    backgroundColor: '#BA4949',
+    borderColor: '#BA4949',
   },
   taskTitle: {
     flex: 1,
@@ -1506,7 +1636,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   taskMenuDanger: {
-    color: '#C64642',
+    color: '#BA4949',
     fontWeight: '700',
     fontSize: 14,
   },
@@ -1514,14 +1644,11 @@ const styles = StyleSheet.create({
     marginTop: 2,
     borderWidth: 2,
     borderStyle: 'dashed',
-    borderColor: 'rgba(255,255,255,0.35)',
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.12)',
   },
   addTaskBtnText: {
-    color: 'rgba(255,255,255,0.9)',
     fontWeight: '700',
     fontSize: 15,
   },
@@ -1532,10 +1659,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
-  finishLabel: { color: 'rgba(255,255,255,0.8)', fontSize: 12 },
-  finishValue: { color: '#fff', fontSize: 28, fontWeight: '700' },
+  finishLabel: { fontSize: 12 },
+  finishValue: { fontSize: 28, fontWeight: '700' },
   finishHint: {
-    color: 'rgba(255,255,255,0.75)',
     fontSize: 12,
     textAlign: 'center',
   },

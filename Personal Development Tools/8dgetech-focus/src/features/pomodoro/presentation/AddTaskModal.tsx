@@ -9,7 +9,7 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
-import { Feather } from '@expo/vector-icons';
+import Feather from '@expo/vector-icons/Feather';
 import type { PomodoroTask } from '../domain/types';
 
 type Props = {
@@ -348,7 +348,7 @@ const styles = StyleSheet.create({
     fontFamily: fontBody,
     fontSize: 14,
     fontWeight: '600',
-    color: '#C64642',
+    color: '#BA4949',
   },
   cancelHit: {
     paddingHorizontal: 16,

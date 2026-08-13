@@ -1,9 +1,11 @@
 {
   "expo": {
     "name": "Focus",
-    "slug": "8dgetech-focus",
+    "slug": "pomodoro",
+    "owner": "salunkemm",
     "version": "1.0.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "scheme": "8dgetech-focus",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -16,17 +18,49 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.eightdgetech.focus"
+      "bundleIdentifier": "com.eightdgetech.focus",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSSupportsLiveActivities": true
+      }
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#1A2332"
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#BA4949"
       },
       "package": "com.eightdgetech.focus"
     },
     "plugins": [
       "expo-router",
-      "expo-font"
-    ]
+      "expo-font",
+      "expo-live-activity",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#BA4949",
+          "sounds": []
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "useLegacyPackaging": true,
+            "extraProguardRules": "-keep class com.stickynotification.** { *; }\n-keep class expo.modules.focustimerchip.** { *; }\n-dontwarn com.google.mlkit.**"
+          }
+        }
+      ],
+      "./plugins/withAndroidFocusTimer.js"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "8b25af9f-e125-4958-ab92-07e45d3b81dd"
+      }
+    }
   }
 }

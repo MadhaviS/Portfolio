@@ -10,7 +10,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import Feather from '@expo/vector-icons/Feather';
 import { useAuth } from './AuthProvider';
 import { useTheme } from '../theme/ThemeProvider';
 import { pomodoroRepository } from '../../features/pomodoro/data/pomodoroRepository';
@@ -85,8 +85,8 @@ export function AuthAccountButton({
         }
         style={style}
       >
-        <Ionicons
-          name={isGuest ? 'person-outline' : 'person-circle'}
+        <Feather
+          name={isGuest ? 'user' : 'user-check'}
           size={iconSize}
           color={color}
         />

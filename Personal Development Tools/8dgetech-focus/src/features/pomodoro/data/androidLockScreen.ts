@@ -1,0 +1,325 @@
+import { AppState, PermissionsAndroid, Platform, type AppStateStatus } from 'react-native';
+import Constants from 'expo-constants';
+import { PHASE_THEME, formatTimer, type PomodoroPhase } from '../domain/types';
+
+export type AndroidLockAction = 'pause' | 'resume' | 'open';
+
+type StickyModule = typeof import('react-native-sticky-notification').default;
+type StickyOptions = import('react-native-sticky-notification').StickyNotificationOptions & {
+  systemStyle?: boolean;
+  usesChronometer?: boolean;
+  chronometerCountDown?: boolean;
+  showWhen?: boolean;
+  when?: number;
+  requestPromotedOngoing?: boolean;
+  category?: string;
+  shortCriticalText?: string;
+};
+
+type ChipModule = {
+  canDrawOverlays: () => boolean;
+  openOverlaySettings: () => void;
+  showCountdown: (endsAtMs: number, accentHex?: string) => void;
+  showPaused: (label: string, accentHex?: string) => void;
+  hide: () => void;
+};
+
+const CHANNEL_ID = 'focus-pomodoro-timer-chrono';
+const NOTIFICATION_ID = 82471;
+
+const isExpoGo = Constants.appOwnership === 'expo';
+const enabled = !isExpoGo && Platform.OS === 'android';
+
+let sticky: StickyModule | null | undefined;
+let chip: ChipModule | null | undefined;
+let serviceActive = false;
+let endsAtMs: number | null = null;
+let pausedRemaining = 0;
+let currentPhase: PomodoroPhase = 'focus';
+let sessionMode: 'running' | 'paused' | 'idle' = 'idle';
+let permissionAsked = false;
+let overlayPrompted = false;
+let actionWired = false;
+let appStateWired = false;
+let appState: AppStateStatus = AppState.currentState;
+
+type ActionHandler = (action: AndroidLockAction) => void;
+const actionHandlers = new Set<ActionHandler>();
+
+function getSticky(): StickyModule | null {
+  if (!enabled) return null;
+  if (sticky !== undefined) return sticky;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    sticky = require('react-native-sticky-notification').default as StickyModule;
+  } catch {
+    sticky = null;
+  }
+  return sticky;
+}
+
+function getChip(): ChipModule | null {
+  if (!enabled) return null;
+  if (chip !== undefined) return chip;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    chip = require('focus-timer-chip').focusTimerChip as ChipModule;
+  } catch {
+    chip = null;
+  }
+  return chip;
+}
+
+async function ensurePostNotifications(): Promise<boolean> {
+  if (Platform.OS !== 'android') return false;
+  if (typeof Platform.Version === 'number' && Platform.Version < 33) return true;
+  try {
+    const granted = await PermissionsAndroid.check(
+      PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+    );
+    if (granted) return true;
+    if (permissionAsked) return false;
+    permissionAsked = true;
+    const result = await PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+    );
+    return result === PermissionsAndroid.RESULTS.GRANTED;
+  } catch {
+    return false;
+  }
+}
+
+function ensureOverlayPermission() {
+  const mod = getChip();
+  if (!mod) return;
+  try {
+    if (mod.canDrawOverlays()) return;
+    if (overlayPrompted) return;
+    overlayPrompted = true;
+    // Opens system “Display over other apps” — required for Clock-like chip.
+    mod.openOverlaySettings();
+  } catch {
+    // ignore
+  }
+}
+
+function wireActions(mod: StickyModule) {
+  if (actionWired) return;
+  actionWired = true;
+  mod.addActionListener((event) => {
+    const id = event.actionId as AndroidLockAction;
+    if (id === 'pause' || id === 'resume' || id === 'open') {
+      actionHandlers.forEach((handler) => handler(id));
+    }
+  });
+}
+
+function wireAppState() {
+  if (!enabled || appStateWired) return;
+  appStateWired = true;
+  AppState.addEventListener('change', (next) => {
+    appState = next;
+    void syncChip();
+  });
+}
+
+function remainingSeconds(): number {
+  if (endsAtMs != null) {
+    return Math.max(0, Math.ceil((endsAtMs - Date.now()) / 1000));
+  }
+  return Math.max(0, pausedRemaining);
+}
+
+function chronoOptions(
+  title: string,
+  text: string,
+  accent: string,
+  actions: StickyOptions['actions'],
+  chrono: { endsAt?: number; countdown: boolean; chipText?: string },
+): StickyOptions {
+  return {
+    channelId: CHANNEL_ID,
+    channelName: 'Focus timer',
+    channelDescription: 'Ongoing Pomodoro countdown (system chronometer)',
+    notificationId: NOTIFICATION_ID,
+    title,
+    text,
+    smallIcon: 'ic_stat_focus',
+    color: accent,
+    priority: 'default',
+    ongoing: true,
+    autoCancel: false,
+    openAppOnAction: true,
+    closeOnAction: true,
+    repostOnDismiss: true,
+    foregroundServiceBehavior: 'immediate',
+    systemStyle: true,
+    requestPromotedOngoing: true,
+    category: 'alarm',
+    shortCriticalText: chrono.chipText,
+    usesChronometer: chrono.countdown && chrono.endsAt != null,
+    chronometerCountDown: chrono.countdown && chrono.endsAt != null,
+    showWhen: chrono.countdown && chrono.endsAt != null,
+    when: chrono.endsAt,
+    actions,
+  };
+}
+
+async function present(options: StickyOptions) {
+  const mod = getSticky();
+  if (!mod) return;
+  wireActions(mod);
+  const ok = await ensurePostNotifications();
+  if (!ok) return;
+  try {
+    if (serviceActive) {
+      await mod.updateNotification(options);
+    } else {
+      await mod.startService(options);
+      serviceActive = true;
+    }
+  } catch {
+    try {
+      await mod.startService(options);
+      serviceActive = true;
+    } catch {
+      serviceActive = false;
+    }
+  }
+}
+
+async function hideService() {
+  const mod = getSticky();
+  if (!mod || !serviceActive) {
+    serviceActive = false;
+    return;
+  }
+  try {
+    await mod.stopService();
+  } catch {
+    // ignore
+  }
+  serviceActive = false;
+}
+
+async function renderRunning() {
+  const theme = PHASE_THEME[currentPhase];
+  const endsAt = endsAtMs ?? Date.now() + remainingSeconds() * 1000;
+  await present(
+    chronoOptions(
+      theme.label,
+      'Pomodoro running',
+      theme.bg,
+      [
+        { id: 'pause', title: 'Pause' },
+        { id: 'open', title: 'Open', payload: '/pomodoro' },
+      ],
+      {
+        endsAt,
+        countdown: true,
+        chipText: formatTimer(remainingSeconds()),
+      },
+    ),
+  );
+}
+
+async function renderPaused() {
+  const theme = PHASE_THEME[currentPhase];
+  await present(
+    chronoOptions(
+      theme.label,
+      `Paused · ${formatTimer(pausedRemaining)}`,
+      theme.bg,
+      [
+        { id: 'resume', title: 'Resume' },
+        { id: 'open', title: 'Open', payload: '/pomodoro' },
+      ],
+      {
+        countdown: false,
+        chipText: formatTimer(pausedRemaining),
+      },
+    ),
+  );
+}
+
+/** Home-screen chip like Clock stopwatch (overlay). Hide while app is open. */
+function syncChip() {
+  const mod = getChip();
+  if (!mod) return;
+  if (sessionMode === 'idle' || appState === 'active') {
+    mod.hide();
+    return;
+  }
+  const theme = PHASE_THEME[currentPhase];
+  if (sessionMode === 'running' && endsAtMs != null) {
+    mod.showCountdown(endsAtMs, theme.bg);
+    return;
+  }
+  if (sessionMode === 'paused') {
+    mod.showPaused(formatTimer(pausedRemaining), theme.bg);
+  }
+}
+
+async function syncSessionUi() {
+  if (!enabled) return;
+  if (sessionMode === 'idle') {
+    await hideService();
+    getChip()?.hide();
+    return;
+  }
+  // Sticky notif stays up for lock screen + shade (even while in-app).
+  if (sessionMode === 'running') {
+    await renderRunning();
+  } else if (sessionMode === 'paused') {
+    await renderPaused();
+  }
+  syncChip();
+}
+
+export const androidLockScreen = {
+  subscribe(handler: ActionHandler) {
+    actionHandlers.add(handler);
+    const mod = getSticky();
+    if (mod) wireActions(mod);
+    return () => {
+      actionHandlers.delete(handler);
+    };
+  },
+
+  async running(input: {
+    phase: PomodoroPhase;
+    endsAt: number;
+    remaining: number;
+  }) {
+    if (!enabled) return;
+    wireAppState();
+    ensureOverlayPermission();
+    currentPhase = input.phase;
+    endsAtMs = input.endsAt;
+    pausedRemaining = input.remaining;
+    sessionMode = 'running';
+    await syncSessionUi();
+  },
+
+  async paused(input: {
+    phase: PomodoroPhase;
+    remaining: number;
+  }) {
+    if (!enabled) return;
+    wireAppState();
+    ensureOverlayPermission();
+    currentPhase = input.phase;
+    endsAtMs = null;
+    pausedRemaining = input.remaining;
+    sessionMode = 'paused';
+    await syncSessionUi();
+  },
+
+  async idle() {
+    if (!enabled) return;
+    endsAtMs = null;
+    pausedRemaining = 0;
+    sessionMode = 'idle';
+    await syncSessionUi();
+  },
+};

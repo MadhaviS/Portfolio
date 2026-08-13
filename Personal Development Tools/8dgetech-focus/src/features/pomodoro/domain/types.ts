@@ -88,25 +88,45 @@ export type PomodoroStats = {
 /** Pomofocus-like mode colors */
 export const PHASE_THEME: Record<
   PomodoroPhase,
-  { bg: string; panel: string; accent: string; label: string }
+  {
+    bg: string;
+    panel: string;
+    accent: string;
+    label: string;
+    /** Darker page wash so doodles read clearly. */
+    pageLight: string;
+    /** Lighter-than-page card (phase-tinted, soft). */
+    panelLight: string;
+    /** Soft page wash for dark theme. */
+    pageDark: string;
+  }
 > = {
   focus: {
-    bg: '#C64642',
+    bg: '#BA4949',
     panel: 'rgba(255,255,255,0.16)',
-    accent: '#D45B57',
+    accent: '#C15C5C',
     label: 'Pomodoro',
+    pageLight: '#A85C58',
+    panelLight: 'rgba(255,248,245,0.82)',
+    pageDark: '#2A1818',
   },
   shortBreak: {
     bg: '#38858A',
     panel: 'rgba(255,255,255,0.16)',
     accent: '#4A9B9F',
     label: 'Short Break',
+    pageLight: '#4F7E82',
+    panelLight: 'rgba(245,252,252,0.82)',
+    pageDark: '#1A2A2C',
   },
   longBreak: {
     bg: '#397097',
     panel: 'rgba(255,255,255,0.16)',
     accent: '#4A84A8',
     label: 'Long Break',
+    pageLight: '#4A6F8C',
+    panelLight: 'rgba(245,249,252,0.82)',
+    pageDark: '#161D28',
   },
 };
 

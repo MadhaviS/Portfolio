@@ -9,6 +9,7 @@ import {
   stopFocusSound,
   syncFocusSound,
 } from '../data/pomodoroAudio';
+import { lockScreenTimer } from '../data/lockScreenTimer';
 import { pomodoroRepository } from '../data/pomodoroRepository';
 import {
   clampMinutes,
@@ -52,6 +53,7 @@ export function usePomodoroTimer() {
 
   const sessionIdRef = useRef<string | null>(null);
   const endsAtRef = useRef<number | null>(null);
+  const [endsAt, setEndsAtState] = useState<number | null>(null);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const phaseRef = useRef(phase);
   const settingsRef = useRef(settings);
@@ -63,6 +65,11 @@ export function usePomodoroTimer() {
   settingsRef.current = settings;
   completedFocusRef.current = stats.focusCompletedToday;
   activeTaskRef.current = activeTaskId;
+
+  const setDeadline = useCallback((value: number | null) => {
+    endsAtRef.current = value;
+    setEndsAtState(value);
+  }, []);
 
   const clearTick = useCallback(() => {
     if (tickRef.current) {
@@ -81,18 +88,19 @@ export function usePomodoroTimer() {
   const reloadFromWorkspace = useCallback(() => {
     clearTick();
     sessionIdRef.current = null;
-    endsAtRef.current = null;
+    setDeadline(null);
     finishingRef.current = false;
     setRunning(false);
     void stopFocusSound();
     void stopAlarmSound();
+    void lockScreenTimer.idle({ phase: 'focus', completed: false });
 
     const nextSettings = pomodoroRepository.getSettings();
     setSettings(nextSettings);
     setPhase('focus');
     setRemaining(durationForPhase('focus', nextSettings));
     refreshInsight();
-  }, [clearTick, refreshInsight]);
+  }, [clearTick, refreshInsight, setDeadline]);
 
   useEffect(() => {
     pomodoroRepository.switchUser(userId);
@@ -106,14 +114,15 @@ export function usePomodoroTimer() {
     setRemaining(durationForPhase(next, nextSettings));
     setRunning(false);
     sessionIdRef.current = null;
-    endsAtRef.current = null;
-  }, []);
+    setDeadline(null);
+  }, [setDeadline]);
 
   const beginSession = useCallback(
     (forPhase: PomodoroPhase, seconds: number) => {
       const id = createId('pomodoro');
       sessionIdRef.current = id;
-      endsAtRef.current = Date.now() + seconds * 1000;
+      const endsAt = Date.now() + seconds * 1000;
+      setDeadline(endsAt);
       pomodoroRepository.addSession({
         id,
         userId: authStub.getUserId(),
@@ -127,8 +136,13 @@ export function usePomodoroTimer() {
       refreshInsight();
       setRemaining(seconds);
       setRunning(true);
+      void lockScreenTimer.running({
+        phase: forPhase,
+        endsAt,
+        remaining: seconds,
+      });
     },
-    [refreshInsight],
+    [refreshInsight, setDeadline],
   );
 
   const finishPhase = useCallback(() => {
@@ -142,11 +156,12 @@ export function usePomodoroTimer() {
       pomodoroRepository.completeSession(sessionIdRef.current, true);
       sessionIdRef.current = null;
     }
-    endsAtRef.current = null;
+    setDeadline(null);
     clearTick();
     setRunning(false);
     void stopFocusSound();
     void playAlarmSound(alarmOptsFromSettings(cfg));
+    void lockScreenTimer.idle({ phase: currentPhase, completed: true });
 
     if (currentPhase === 'focus') {
       pomodoroRepository.incrementActiveTaskPomodoro();
@@ -168,32 +183,40 @@ export function usePomodoroTimer() {
       const seconds = durationForPhase(upcoming, cfg);
       setTimeout(() => beginSession(upcoming, seconds), 400);
     }
-  }, [applyPhase, beginSession, clearTick, refreshInsight]);
+  }, [applyPhase, beginSession, clearTick, refreshInsight, setDeadline]);
 
   const start = useCallback(() => {
     if (running) return;
     if (sessionIdRef.current && remaining > 0) {
-      endsAtRef.current = Date.now() + remaining * 1000;
+      const endsAt = Date.now() + remaining * 1000;
+      setDeadline(endsAt);
       setRunning(true);
+      void lockScreenTimer.running({
+        phase,
+        endsAt,
+        remaining,
+      });
       return;
     }
     const seconds =
       remaining > 0 ? remaining : durationForPhase(phase, settings);
     beginSession(phase, seconds);
-  }, [beginSession, phase, remaining, running, settings]);
+  }, [beginSession, phase, remaining, running, setDeadline, settings]);
 
   const pause = useCallback(() => {
-    if (endsAtRef.current) {
-      const left = Math.max(
-        0,
-        Math.ceil((endsAtRef.current - Date.now()) / 1000),
-      );
-      setRemaining(left);
-    }
-    endsAtRef.current = null;
+    const left = endsAtRef.current
+      ? Math.max(0, Math.ceil((endsAtRef.current - Date.now()) / 1000))
+      : remaining;
+    setRemaining(left);
+    setDeadline(null);
     setRunning(false);
     void stopFocusSound();
-  }, []);
+    void lockScreenTimer.paused({
+      phase: phaseRef.current,
+      remaining: left,
+      total: durationForPhase(phaseRef.current, settingsRef.current),
+    });
+  }, [remaining, setDeadline]);
 
   const selectPhase = useCallback(
     (next: PomodoroPhase) => {
@@ -202,13 +225,14 @@ export function usePomodoroTimer() {
         pomodoroRepository.completeSession(sessionIdRef.current, false);
         sessionIdRef.current = null;
       }
-      endsAtRef.current = null;
+      setDeadline(null);
       void stopFocusSound();
       void stopAlarmSound();
+      void lockScreenTimer.idle({ phase: next, completed: false });
       refreshInsight();
       applyPhase(next);
     },
-    [applyPhase, phase, refreshInsight, running],
+    [applyPhase, phase, refreshInsight, running, setDeadline],
   );
 
   const reset = useCallback(() => {
@@ -216,12 +240,13 @@ export function usePomodoroTimer() {
       pomodoroRepository.completeSession(sessionIdRef.current, false);
       sessionIdRef.current = null;
     }
-    endsAtRef.current = null;
+    setDeadline(null);
     void stopFocusSound();
     void stopAlarmSound();
+    void lockScreenTimer.idle({ phase, completed: false });
     refreshInsight();
     applyPhase(phase);
-  }, [applyPhase, phase, refreshInsight]);
+  }, [applyPhase, phase, refreshInsight, setDeadline]);
 
   useEffect(() => {
     void syncFocusSound(focusOptsFromSettings(settings, running, phase));
@@ -357,6 +382,7 @@ export function usePomodoroTimer() {
 
   const total = durationForPhase(phase, settings);
   const progress = total === 0 ? 0 : Math.min(1, Math.max(0, 1 - remaining / total));
+  const isPartial = remaining > 0 && remaining < total;
   const activeTask = tasks.find((t) => t.id === activeTaskId) ?? null;
   const finishAt = estimateFinishAt(
     tasks,
@@ -370,6 +396,8 @@ export function usePomodoroTimer() {
     remaining,
     total,
     progress,
+    endsAt,
+    isPartial,
     running,
     stats,
     history,
