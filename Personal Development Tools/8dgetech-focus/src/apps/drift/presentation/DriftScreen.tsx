@@ -116,6 +116,16 @@ export function DriftScreen() {
     winH * (session ? 0.34 : 0.26),
   );
   const heroH = driftHeroHeight(orbSize, quiet || !session);
+  // Scale orb copy/buttons so “I'm back” / “End session” fit on small phones.
+  const orbCompact = orbSize < 260;
+  const orbTight = orbSize < 220;
+  const orbTitleSize = orbTight ? 15 : orbCompact ? 17 : 20;
+  const orbTitleLine = orbTight ? 20 : orbCompact ? 22 : 26;
+  const orbBtnPadV = orbTight ? 8 : orbCompact ? 9 : 11;
+  const orbBtnPadH = orbTight ? 14 : orbCompact ? 16 : 20;
+  const orbBtnText = orbTight ? 12 : orbCompact ? 13 : 14;
+  const orbStatNum = orbTight ? 20 : orbCompact ? 24 : 28;
+  const orbGap = orbTight ? 5 : orbCompact ? 6 : 8;
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return;
@@ -226,8 +236,14 @@ export function DriftScreen() {
               backgroundColor: p.orb,
               borderColor: p.orbRing,
               shadowColor: '#000',
-              gap: session ? 10 : 8,
-              paddingHorizontal: session ? 28 : 22,
+              gap: session ? orbGap : 8,
+              paddingHorizontal: session
+                ? orbTight
+                  ? 16
+                  : orbCompact
+                    ? 20
+                    : 24
+                : 22,
             },
           ]}
         >
@@ -251,16 +267,41 @@ export function DriftScreen() {
             </>
           ) : nudgeVisible ? (
             <>
-              <Text style={[styles.orbKicker, { color: p.inkMuted }]}>
+              <Text
+                style={[
+                  styles.orbKicker,
+                  {
+                    color: p.inkMuted,
+                    fontSize: orbTight ? 10 : 11,
+                  },
+                ]}
+              >
                 Welcome back
               </Text>
               <Text
-                style={[styles.orbTitle, { color: p.ink }]}
-                numberOfLines={3}
+                style={[
+                  styles.orbTitle,
+                  {
+                    color: p.ink,
+                    fontSize: orbTitleSize,
+                    lineHeight: orbTitleLine,
+                  },
+                ]}
+                numberOfLines={2}
               >
                 {session.intention}
               </Text>
-              <Text style={[styles.orbHint, { color: p.inkMuted }]}>
+              <Text
+                style={[
+                  styles.orbHint,
+                  {
+                    color: p.inkMuted,
+                    fontSize: orbTight ? 11 : 12,
+                    lineHeight: orbTight ? 15 : 17,
+                    maxWidth: orbSize * 0.72,
+                  },
+                ]}
+              >
                 Attention wandered. Acknowledge it and continue.
               </Text>
               <Pressable
@@ -270,10 +311,19 @@ export function DriftScreen() {
                   {
                     backgroundColor: p.accent,
                     opacity: pressed ? 0.92 : 1,
+                    minWidth: 0,
+                    paddingVertical: orbBtnPadV,
+                    paddingHorizontal: orbBtnPadH,
+                    marginTop: 2,
                   },
                 ]}
               >
-                <Text style={[styles.primaryBtnText, { color: p.onAccent }]}>
+                <Text
+                  style={[
+                    styles.primaryBtnText,
+                    { color: p.onAccent, fontSize: orbBtnText },
+                  ]}
+                >
                   I{"'"}m back
                 </Text>
               </Pressable>
@@ -283,40 +333,84 @@ export function DriftScreen() {
               <View
                 style={[
                   styles.livePill,
-                  { backgroundColor: 'rgba(255,255,255,0.18)' },
+                  {
+                    backgroundColor: 'rgba(255,255,255,0.18)',
+                    paddingVertical: orbTight ? 4 : 6,
+                    paddingHorizontal: orbTight ? 10 : 12,
+                  },
                 ]}
               >
                 <View style={styles.liveDot} />
-                <Text style={[styles.liveText, { color: p.ink }]}>
+                <Text
+                  style={[
+                    styles.liveText,
+                    { color: p.ink, fontSize: orbTight ? 10 : 11 },
+                  ]}
+                >
                   Watching
                 </Text>
               </View>
               <Text
-                style={[styles.orbTitle, { color: p.ink }]}
-                numberOfLines={3}
+                style={[
+                  styles.orbTitle,
+                  {
+                    color: p.ink,
+                    fontSize: orbTitleSize,
+                    lineHeight: orbTitleLine,
+                  },
+                ]}
+                numberOfLines={2}
               >
                 {session.intention}
               </Text>
-              <View style={styles.statRow}>
+              <View
+                style={[
+                  styles.statRow,
+                  { gap: orbTight ? 14 : 18, marginVertical: 0 },
+                ]}
+              >
                 <View style={styles.stat}>
-                  <Text style={[styles.statNum, { color: p.ink }]}>
+                  <Text
+                    style={[
+                      styles.statNum,
+                      { color: p.ink, fontSize: orbStatNum },
+                    ]}
+                  >
                     {driftCount}
                   </Text>
-                  <Text style={[styles.statLabel, { color: p.inkMuted }]}>
+                  <Text
+                    style={[
+                      styles.statLabel,
+                      { color: p.inkMuted, fontSize: orbTight ? 10 : 11 },
+                    ]}
+                  >
                     drifts
                   </Text>
                 </View>
                 <View
                   style={[
                     styles.statDivider,
-                    { backgroundColor: 'rgba(255,255,255,0.35)' },
+                    {
+                      backgroundColor: 'rgba(255,255,255,0.35)',
+                      height: orbTight ? 26 : 30,
+                    },
                   ]}
                 />
                 <View style={styles.stat}>
-                  <Text style={[styles.statNum, { color: p.ink }]}>
+                  <Text
+                    style={[
+                      styles.statNum,
+                      { color: p.ink, fontSize: orbStatNum },
+                    ]}
+                  >
                     {returnCount}
                   </Text>
-                  <Text style={[styles.statLabel, { color: p.inkMuted }]}>
+                  <Text
+                    style={[
+                      styles.statLabel,
+                      { color: p.inkMuted, fontSize: orbTight ? 10 : 11 },
+                    ]}
+                  >
                     returns
                   </Text>
                 </View>
@@ -328,11 +422,20 @@ export function DriftScreen() {
                   {
                     backgroundColor: p.accent,
                     opacity: pressed ? 0.92 : 1,
+                    minWidth: 0,
+                    paddingVertical: orbBtnPadV,
+                    paddingHorizontal: orbBtnPadH,
+                    marginTop: 2,
                   },
                 ]}
                 accessibilityLabel="End Drift session"
               >
-                <Text style={[styles.primaryBtnText, { color: p.onAccent }]}>
+                <Text
+                  style={[
+                    styles.primaryBtnText,
+                    { color: p.onAccent, fontSize: orbBtnText },
+                  ]}
+                >
                   End session
                 </Text>
               </Pressable>

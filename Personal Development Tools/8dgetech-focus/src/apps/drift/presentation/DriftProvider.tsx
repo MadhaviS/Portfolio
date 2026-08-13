@@ -9,7 +9,6 @@ import React, {
   type ReactNode,
 } from 'react';
 import { AppState, Platform, type AppStateStatus } from 'react-native';
-import { closeTimerPip } from '../../pulse/presentation/timerPip';
 import { useDriftSession } from './useDriftSession';
 import {
   closeDriftPip,
@@ -131,8 +130,6 @@ export function DriftProvider({ children }: { children: ReactNode }) {
   const minimize = useCallback(() => {
     if (!session) return;
     setOverlayDismissed(false);
-    // One sticky surface at a time — close Pulse PiP if open.
-    closeTimerPip();
     void openDriftPip(
       {
         intention: session.intention,

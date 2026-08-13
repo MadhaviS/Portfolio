@@ -1,5 +1,13 @@
 import { Platform } from 'react-native';
 import { PHASE_THEME } from '../../pulse/domain/types';
+import {
+  canUseSuiteDocumentPip,
+  isDriftInSuitePip,
+  setSuiteDriftHandlers,
+  suiteCloseDrift,
+  suiteOpenDrift,
+  suiteUpdateDrift,
+} from '../../../public/pip/suitePip';
 
 export type PipDriftState = {
   intention: string;
@@ -68,7 +76,7 @@ function canUseVideoPip(): boolean {
 }
 
 export function isDriftPipOpen(): boolean {
-  if (pipWindow != null && !pipWindow.closed) return true;
+  if (isDriftInSuitePip()) return true;
   if (Platform.OS === 'web' && typeof document !== 'undefined') {
     return document.pictureInPictureElement != null && videoPip != null;
   }
@@ -77,6 +85,13 @@ export function isDriftPipOpen(): boolean {
 
 export function setDriftPipHandlers(handlers: PipHandlers) {
   handlersRef = handlers;
+  setSuiteDriftHandlers({
+    onClose: handlers.onClose,
+    onDismiss: handlers.onDismiss,
+    onOpenApp: handlers.onOpenApp,
+    onCountDrift: handlers.onCountDrift,
+    onMarkReturn: handlers.onMarkReturn,
+  });
 }
 
 function windIconSvg(color: string): string {
@@ -402,60 +417,39 @@ export async function openDriftPip(
 ): Promise<boolean> {
   handlersRef = handlers;
   lastState = state;
+  setSuiteDriftHandlers({
+    onClose: handlers.onClose,
+    onDismiss: handlers.onDismiss,
+    onOpenApp: handlers.onOpenApp,
+    onCountDrift: handlers.onCountDrift,
+    onMarkReturn: handlers.onMarkReturn,
+  });
 
-  const api = getPipApi();
-  if (api) {
-    try {
-      if (pipWindow && !pipWindow.closed) {
-        if (videoPip) stopVideoPip(true);
-        paint(pipWindow, state);
-        return true;
-      }
-      if (videoPip) stopVideoPip(true);
-      const win = await api.requestWindow({
-        width: PIP_W,
-        height: PIP_H,
-        disallowReturnToOpener: false,
-      });
-      pipWindow = win;
-      mount(win, state);
-      win.addEventListener('pagehide', () => {
-        pipWindow = null;
-        if (silentClose) {
-          silentClose = false;
-          return;
-        }
-        handlersRef?.onClose();
-      });
-      return true;
-    } catch {
-      // fall through
-    }
+  if (canUseSuiteDocumentPip()) {
+    if (videoPip) stopVideoPip(true);
+    const ok = await suiteOpenDrift(state, {
+      onClose: handlers.onClose,
+      onDismiss: handlers.onDismiss,
+      onOpenApp: handlers.onOpenApp,
+      onCountDrift: handlers.onCountDrift,
+      onMarkReturn: handlers.onMarkReturn,
+    });
+    if (ok) return true;
   }
 
-  if (pipWindow && !pipWindow.closed) {
-    try {
-      silentClose = true;
-      pipWindow.close();
-    } catch {
-      // ignore
-    }
-    pipWindow = null;
-  }
   return openVideoPip(state, handlers);
 }
 
 export function updateDriftPip(state: PipDriftState) {
   lastState = state;
-  if (pipWindow && !pipWindow.closed) {
-    paint(pipWindow, state);
-  }
+  suiteUpdateDrift(state);
   if (videoPip) {
     drawVideoPipFrame(state);
   }
 }
 
 export function closeDriftPip() {
+  void suiteCloseDrift();
   if (pipWindow) {
     silentClose = true;
     try {

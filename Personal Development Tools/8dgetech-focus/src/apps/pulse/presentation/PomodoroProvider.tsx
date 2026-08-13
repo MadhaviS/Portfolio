@@ -20,7 +20,6 @@ import {
   setTimerPipHandlers,
   updateTimerPip,
 } from './timerPip';
-import { closeDriftPip } from '../../drift/presentation/driftPip';
 
 type PomodoroTimerApi = ReturnType<typeof usePomodoroTimer>;
 
@@ -132,8 +131,6 @@ export function PomodoroProvider({ children }: { children: ReactNode }) {
   const minimize = useCallback(() => {
     minimizedPhaseRef.current = timer.phase;
     setOverlayDismissed(false);
-    // One sticky surface at a time — close Drift PiP if open.
-    closeDriftPip();
     // Prefer a single surface: try system PiP first, then fall back to the
     // in-app bubble only if PiP is unavailable — never show both.
     void openTimerPip(

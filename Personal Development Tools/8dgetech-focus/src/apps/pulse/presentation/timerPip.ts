@@ -1,5 +1,13 @@
 import { Platform } from 'react-native';
 import { PHASE_THEME, formatTimer, type PomodoroPhase } from '../domain/types';
+import {
+  canUseSuiteDocumentPip,
+  isPulseInSuitePip,
+  setSuitePulseHandlers,
+  suiteClosePulse,
+  suiteOpenPulse,
+  suiteUpdatePulse,
+} from '../../../public/pip/suitePip';
 
 export type PipTimerState = {
   remaining: number;
@@ -120,11 +128,11 @@ function canUseVideoPip(): boolean {
 }
 
 export function canUseTimerPip(): boolean {
-  return getPipApi() != null || canUseVideoPip();
+  return canUseSuiteDocumentPip() || canUseVideoPip();
 }
 
 export function isTimerPipOpen(): boolean {
-  if (pipWindow != null && !pipWindow.closed) return true;
+  if (isPulseInSuitePip()) return true;
   if (Platform.OS === 'web' && typeof document !== 'undefined') {
     return document.pictureInPictureElement != null && videoPip != null;
   }
@@ -133,6 +141,12 @@ export function isTimerPipOpen(): boolean {
 
 export function setTimerPipHandlers(handlers: PipHandlers) {
   handlersRef = handlers;
+  setSuitePulseHandlers({
+    onClose: handlers.onClose,
+    onDismiss: handlers.onDismiss,
+    onOpenApp: handlers.onOpenApp,
+    onToggleRun: handlers.onToggleRun,
+  });
 }
 
 function taskLabel(state: PipTimerState): string {
@@ -632,64 +646,41 @@ export async function openTimerPip(
   handlers: PipHandlers,
 ): Promise<boolean> {
   handlersRef = handlers;
+  setSuitePulseHandlers({
+    onClose: handlers.onClose,
+    onDismiss: handlers.onDismiss,
+    onOpenApp: handlers.onOpenApp,
+    onToggleRun: handlers.onToggleRun,
+  });
 
-  // Desktop Chrome: interactive Document PiP
-  const api = getPipApi();
-  if (api) {
-    try {
-      if (pipWindow && !pipWindow.closed) {
-        // Never keep Video PiP alongside Document PiP.
-        if (videoPip) stopVideoPip(true);
-        paint(pipWindow, state);
-        return true;
-      }
-      // Close any leftover Video PiP before opening Document PiP.
-      if (videoPip) stopVideoPip(true);
-      const win = await api.requestWindow({
-        width: PIP_W,
-        height: PIP_H,
-        disallowReturnToOpener: false,
-      });
-      pipWindow = win;
-      mount(win, state);
-      win.addEventListener('pagehide', () => {
-        pipWindow = null;
-        if (silentClose) {
-          silentClose = false;
-          return;
-        }
-        handlersRef?.onClose();
-      });
-      return true;
-    } catch {
-      // fall through to video PiP
-    }
+  // Shared Document PiP (stacks with Drift when both minimized)
+  if (canUseSuiteDocumentPip()) {
+    if (videoPip) stopVideoPip(true);
+    const ok = await suiteOpenPulse(state, {
+      onClose: handlers.onClose,
+      onDismiss: handlers.onDismiss,
+      onOpenApp: handlers.onOpenApp,
+      onToggleRun: handlers.onToggleRun,
+    });
+    if (ok) return true;
   }
 
-  // Mobile Chrome / Safari: YouTube-style floating Video PiP over other apps
-  if (pipWindow && !pipWindow.closed) {
-    try {
-      silentClose = true;
-      pipWindow.close();
-    } catch {
-      // ignore
-    }
-    pipWindow = null;
-  }
+  // Mobile / no Document PiP — Video PiP fallback
   return openVideoPip(state, handlers);
 }
 
 export function updateTimerPip(state: PipTimerState) {
-  if (pipWindow && !pipWindow.closed) {
-    paint(pipWindow, state);
-  }
+  suiteUpdatePulse(state);
   if (videoPip) {
     videoPip.lastState = state;
-    refreshVideoPipFromClock();
+    drawVideoPipFrame(state);
+    syncVideoPlayback(state);
+    wireMediaSession(state);
   }
 }
 
 export function closeTimerPip() {
+  void suiteClosePulse();
   if (pipWindow) {
     silentClose = true;
     try {
