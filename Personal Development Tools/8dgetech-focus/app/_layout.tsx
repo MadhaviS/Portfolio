@@ -146,6 +146,14 @@ function RootNavigator() {
               }}
             />
             <Stack.Screen
+              name="admin"
+              options={{
+                title: 'Admin',
+                headerShown: false,
+                contentStyle: { backgroundColor: 'transparent' },
+              }}
+            />
+            <Stack.Screen
               name="pomodoro-calendar"
               options={{
                 title: 'Calendar',

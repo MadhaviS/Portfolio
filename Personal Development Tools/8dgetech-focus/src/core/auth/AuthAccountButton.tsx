@@ -45,7 +45,7 @@ export function AuthAccountButton({
   const router = useRouter();
   const { theme } = useTheme();
   const c = theme.colors;
-  const { isGuest, signOut, signInAsGuest } = useAuth();
+  const { isGuest, isAdmin, signOut, signInAsGuest } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -116,6 +116,29 @@ export function AuthAccountButton({
             <Text style={[styles.menuTitle, { color: c.onSurfaceMuted }]}>
               My account
             </Text>
+
+            {isAdmin ? (
+              <Pressable
+                onPress={() => {
+                  setMenuOpen(false);
+                  router.push('/admin');
+                }}
+                disabled={busy}
+                style={({ pressed }) => [
+                  styles.menuItem,
+                  {
+                    backgroundColor: pressed ? c.backgroundAlt : 'transparent',
+                    opacity: busy ? 0.6 : 1,
+                  },
+                ]}
+                accessibilityLabel="Admin"
+              >
+                <Feather name="shield" size={18} color={c.onSurface} />
+                <Text style={[styles.menuItemLabel, { color: c.onSurface }]}>
+                  Admin
+                </Text>
+              </Pressable>
+            ) : null}
 
             {onOpenReport ? (
               <Pressable

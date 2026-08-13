@@ -1,12 +1,22 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
+import { createAuthStorage } from './authStorage';
 
-const url =
+function normalizeSupabaseUrl(raw: string): string {
+  return raw
+    .trim()
+    .replace(/\/+$/, '')
+    .replace(/\/rest\/v1$/i, '')
+    .replace(/\/auth\/v1$/i, '');
+}
+
+const url = normalizeSupabaseUrl(
   process.env.EXPO_PUBLIC_SUPABASE_URL ??
-  (Constants.expoConfig?.extra as { supabaseUrl?: string } | undefined)?.supabaseUrl ??
-  '';
+    (Constants.expoConfig?.extra as { supabaseUrl?: string } | undefined)
+      ?.supabaseUrl ??
+    '',
+);
 const anonKey =
   process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ??
   (Constants.expoConfig?.extra as { supabaseAnonKey?: string } | undefined)
@@ -31,10 +41,10 @@ export function getSupabase(): SupabaseClient | null {
   if (client) return client;
   client = createClient(url, anonKey, {
     auth: {
-      storage: AsyncStorage,
+      storage: createAuthStorage(),
       autoRefreshToken: true,
       persistSession: true,
-      detectSessionInUrl: Platform.OS === 'web',
+      detectSessionInUrl: Platform.OS === 'web' && typeof window !== 'undefined',
       flowType: 'pkce',
     },
   });

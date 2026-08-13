@@ -4,6 +4,7 @@ import {
   getSupabase,
   isSupabaseConfigured,
 } from '../supabase/client';
+import { fetchIsAdmin } from '../../features/admin/adminApi';
 
 export type AuthUser = {
   id: string;
@@ -21,6 +22,8 @@ export type AuthState = {
   ready: boolean;
   /** Free cloud auth available (env configured). */
   cloudEnabled: boolean;
+  /** profiles.role === 'admin' (Supabase). */
+  isAdmin: boolean;
 };
 
 type StoredAccount = {
@@ -47,6 +50,7 @@ type Listener = () => void;
 
 let currentUser: AuthUser | null = null;
 let ready = false;
+let isAdmin = false;
 const listeners = new Set<Listener>();
 let authListenerBound = false;
 
@@ -174,13 +178,28 @@ function getState(): AuthState {
     isAuthenticated: !!currentUser,
     ready,
     cloudEnabled: isSupabaseConfigured(),
+    isAdmin,
   };
 }
 
 function applyUser(user: AuthUser | null) {
   currentUser = user;
   writeSession(user);
+  if (!user || user.id === 'local-guest' || user.provider !== 'supabase') {
+    isAdmin = false;
+  } else {
+    void refreshAdminFlag(user.id);
+  }
   emit();
+}
+
+async function refreshAdminFlag(userId: string) {
+  const next = await fetchIsAdmin(userId);
+  if (currentUser?.id !== userId) return;
+  if (isAdmin !== next) {
+    isAdmin = next;
+    emit();
+  }
 }
 
 function bindSupabaseAuthListener() {
