@@ -117,8 +117,9 @@ export function PomodoroScreen() {
   const progressTrack = isLight ? 'rgba(26,28,32,0.1)' : 'rgba(0,0,0,0.18)';
   const progressFill = isLight ? theme.bg : 'rgba(255,255,255,0.9)';
   const tasksRule = isLight ? 'rgba(26,28,32,0.12)' : 'rgba(255,255,255,0.9)';
-  const addTaskBorder = isLight ? `${theme.bg}66` : 'rgba(255,255,255,0.35)';
-  const addTaskBg = isLight ? `${theme.bg}14` : 'rgba(0,0,0,0.12)';
+  const addTaskBorder = isLight ? `${theme.bg}66` : 'rgba(255,255,255,0.55)';
+  const addTaskBg = isLight ? `${theme.bg}14` : 'rgba(255,255,255,0.12)';
+  const addTaskText = isLight ? theme.bg : '#FFFFFF';
   const panelShadow = isLight
     ? Platform.select({
         web: { boxShadow: '0 14px 34px rgba(0,0,0,0.18)' } as object,
@@ -372,7 +373,7 @@ export function PomodoroScreen() {
               },
             ]}
           >
-            <Text style={[styles.addTaskBtnText, { color: theme.bg }]}>
+            <Text style={[styles.addTaskBtnText, { color: addTaskText }]}>
               + Add Task
             </Text>
           </Pressable>

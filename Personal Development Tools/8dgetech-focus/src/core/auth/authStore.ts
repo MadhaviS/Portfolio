@@ -10,7 +10,6 @@ export type AuthUser = {
   id: string;
   email: string;
   displayName: string;
-  /** True when using free Supabase email OTP (verified). */
   emailVerified?: boolean;
   provider?: 'local' | 'supabase';
 };
@@ -24,6 +23,14 @@ export type AuthState = {
   cloudEnabled: boolean;
   /** profiles.role === 'admin' (Supabase). */
   isAdmin: boolean;
+  /** User opened a password-reset link; show set-new-password UI. */
+  passwordRecovery: boolean;
+};
+
+export type SignUpResult = {
+  user: AuthUser | null;
+  /** True when email confirmation is required before sign-in. */
+  needsEmailConfirmation: boolean;
 };
 
 type StoredAccount = {
@@ -51,6 +58,7 @@ type Listener = () => void;
 let currentUser: AuthUser | null = null;
 let ready = false;
 let isAdmin = false;
+let passwordRecovery = false;
 const listeners = new Set<Listener>();
 let authListenerBound = false;
 
@@ -179,6 +187,7 @@ function getState(): AuthState {
     ready,
     cloudEnabled: isSupabaseConfigured(),
     isAdmin,
+    passwordRecovery,
   };
 }
 
@@ -206,10 +215,15 @@ function bindSupabaseAuthListener() {
   const sb = getSupabase();
   if (!sb || authListenerBound) return;
   authListenerBound = true;
-  sb.auth.onAuthStateChange((_event, session) => {
+  sb.auth.onAuthStateChange((event, session) => {
+    if (event === 'PASSWORD_RECOVERY') {
+      passwordRecovery = true;
+    }
     if (!session?.user) {
       if (currentUser?.provider === 'supabase') {
         applyUser(GUEST);
+      } else {
+        emit();
       }
       return;
     }
@@ -223,6 +237,20 @@ function bindSupabaseAuthListener() {
       ),
     );
   });
+}
+
+function validateCredentials(email: string, password: string) {
+  const normalized = normalizeEmail(email);
+  if (!normalized || !password) {
+    throw new Error('Email and password are required.');
+  }
+  if (!normalized.includes('@')) {
+    throw new Error('Enter a valid email address.');
+  }
+  if (password.length < 6) {
+    throw new Error('Password must be at least 6 characters.');
+  }
+  return normalized;
 }
 
 export const authStore = {
@@ -280,57 +308,6 @@ export const authStore = {
     return getState();
   },
 
-  /** Free: send email OTP (creates user if new). */
-  async requestEmailOtp(email: string): Promise<void> {
-    const sb = getSupabase();
-    if (!sb) {
-      throw new Error(
-        'Cloud auth is not configured. Add EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY to .env',
-      );
-    }
-    const normalized = normalizeEmail(email);
-    if (!normalized.includes('@')) {
-      throw new Error('Enter a valid email address.');
-    }
-    const { error } = await sb.auth.signInWithOtp({
-      email: normalized,
-      options: {
-        shouldCreateUser: true,
-        emailRedirectTo: authRedirectTo(),
-      },
-    });
-    if (error) throw new Error(error.message);
-  },
-
-  /** Free: verify 6-digit code from email. */
-  async verifyEmailOtp(email: string, token: string): Promise<AuthUser> {
-    const sb = getSupabase();
-    if (!sb) {
-      throw new Error('Cloud auth is not configured.');
-    }
-    const normalized = normalizeEmail(email);
-    const code = token.trim();
-    if (code.length < 6) {
-      throw new Error('Enter the 6-digit code from your email.');
-    }
-    const { data, error } = await sb.auth.verifyOtp({
-      email: normalized,
-      token: code,
-      type: 'email',
-    });
-    if (error) throw new Error(error.message);
-    const u = data.user ?? data.session?.user;
-    if (!u) throw new Error('Verification failed. Try again.');
-    const user = userFromSupabase(
-      u.id,
-      u.email,
-      u.user_metadata as Record<string, unknown>,
-      !!u.email_confirmed_at,
-    );
-    applyUser(user);
-    return user;
-  },
-
   async updateDisplayName(displayName: string): Promise<void> {
     const name = displayName.trim();
     if (!name || !currentUser || currentUser.id === 'local-guest') return;
@@ -349,17 +326,27 @@ export const authStore = {
     }
   },
 
-  /** Local-only fallback when Supabase env is missing. */
   async signIn(email: string, password: string): Promise<AuthUser> {
-    if (isSupabaseConfigured()) {
-      throw new Error('Use the email code sign-in (OTP) instead of a password.');
-    }
-    const normalized = normalizeEmail(email);
-    if (!normalized || !password) {
-      throw new Error('Email and password are required.');
-    }
-    if (!normalized.includes('@')) {
-      throw new Error('Enter a valid email address.');
+    const normalized = validateCredentials(email, password);
+
+    const sb = getSupabase();
+    if (sb) {
+      const { data, error } = await sb.auth.signInWithPassword({
+        email: normalized,
+        password,
+      });
+      if (error) throw new Error(error.message);
+      const u = data.user ?? data.session?.user;
+      if (!u) throw new Error('Sign in failed. Try again.');
+      const user = userFromSupabase(
+        u.id,
+        u.email,
+        u.user_metadata as Record<string, unknown>,
+        !!u.email_confirmed_at,
+      );
+      passwordRecovery = false;
+      applyUser(user);
+      return user;
     }
 
     const accounts = readAccounts();
@@ -389,19 +376,41 @@ export const authStore = {
     return user;
   },
 
-  async signUp(email: string, password: string, displayName?: string): Promise<AuthUser> {
-    if (isSupabaseConfigured()) {
-      throw new Error('Use the email code sign-in (OTP) to create an account.');
-    }
-    const normalized = normalizeEmail(email);
-    if (!normalized || !password) {
-      throw new Error('Email and password are required.');
-    }
-    if (!normalized.includes('@')) {
-      throw new Error('Enter a valid email address.');
-    }
-    if (password.length < 6) {
-      throw new Error('Password must be at least 6 characters.');
+  async signUp(
+    email: string,
+    password: string,
+    displayName?: string,
+  ): Promise<SignUpResult> {
+    const normalized = validateCredentials(email, password);
+    const name = (displayName || displayNameFromEmail(normalized)).trim();
+
+    const sb = getSupabase();
+    if (sb) {
+      const { data, error } = await sb.auth.signUp({
+        email: normalized,
+        password,
+        options: {
+          emailRedirectTo: authRedirectTo(),
+          data: { display_name: name },
+        },
+      });
+      if (error) throw new Error(error.message);
+
+      const u = data.user;
+      // Email confirmation required → no session yet
+      if (!data.session) {
+        return { user: null, needsEmailConfirmation: true };
+      }
+      if (!u) throw new Error('Sign up failed. Try again.');
+      const user = userFromSupabase(
+        u.id,
+        u.email,
+        u.user_metadata as Record<string, unknown>,
+        !!u.email_confirmed_at,
+      );
+      passwordRecovery = false;
+      applyUser(user);
+      return { user, needsEmailConfirmation: false };
     }
 
     const accounts = readAccounts();
@@ -412,7 +421,7 @@ export const authStore = {
     const user: AuthUser = {
       id: `user_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       email: normalized,
-      displayName: (displayName || displayNameFromEmail(normalized)).trim(),
+      displayName: name,
       provider: 'local',
     };
 
@@ -423,7 +432,44 @@ export const authStore = {
     });
     writeAccounts(accounts);
     applyUser(user);
-    return user;
+    return { user, needsEmailConfirmation: false };
+  },
+
+  async requestPasswordReset(email: string): Promise<void> {
+    const sb = getSupabase();
+    if (!sb) {
+      throw new Error(
+        'Password reset needs cloud auth. Add Supabase keys to .env, or create a new local account.',
+      );
+    }
+    const normalized = normalizeEmail(email);
+    if (!normalized.includes('@')) {
+      throw new Error('Enter a valid email address.');
+    }
+    const { error } = await sb.auth.resetPasswordForEmail(normalized, {
+      redirectTo: authRedirectTo(),
+    });
+    if (error) throw new Error(error.message);
+  },
+
+  async updatePassword(password: string): Promise<void> {
+    if (!password || password.length < 6) {
+      throw new Error('Password must be at least 6 characters.');
+    }
+    const sb = getSupabase();
+    if (!sb) {
+      throw new Error('Cloud auth is not configured.');
+    }
+    const { error } = await sb.auth.updateUser({ password });
+    if (error) throw new Error(error.message);
+    passwordRecovery = false;
+    emit();
+  },
+
+  clearPasswordRecovery() {
+    if (!passwordRecovery) return;
+    passwordRecovery = false;
+    emit();
   },
 
   async signInAsGuest(): Promise<AuthUser> {
@@ -431,6 +477,7 @@ export const authStore = {
     if (sb && currentUser?.provider === 'supabase') {
       await sb.auth.signOut();
     }
+    passwordRecovery = false;
     applyUser(GUEST);
     return GUEST;
   },
@@ -440,6 +487,7 @@ export const authStore = {
     if (sb) {
       await sb.auth.signOut();
     }
+    passwordRecovery = false;
     applyUser(null);
   },
 };

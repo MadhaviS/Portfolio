@@ -40,7 +40,7 @@ function BubbleOverlay() {
 
 /** Soft gate: app is usable without login; only bounce signed-in users off /sign-in. */
 function AuthBootstrap({ children }: { children: React.ReactNode }) {
-  const { ready, isAuthenticated, isGuest } = useAuth();
+  const { ready, isAuthenticated, isGuest, passwordRecovery } = useAuth();
   const segments = useSegments();
   const router = useRouter();
   const { theme } = useTheme();
@@ -48,24 +48,31 @@ function AuthBootstrap({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!ready) return;
     const onAuth = segments[0] === 'sign-in';
-    if (isAuthenticated && !isGuest && onAuth) {
+    if (isAuthenticated && !isGuest && onAuth && !passwordRecovery) {
       router.replace('/pomodoro');
     }
-  }, [ready, isAuthenticated, isGuest, segments, router]);
+  }, [ready, isAuthenticated, isGuest, passwordRecovery, segments, router]);
 
-  // Magic-link / OAuth redirect (free email confirm links)
+  // Confirm-email / password-reset deep links
   useEffect(() => {
     const sb = getSupabase();
     if (!sb) return;
 
     const handleUrl = async (url: string | null) => {
       if (!url) return;
-      if (url.includes('access_token') || url.includes('code=')) {
-        try {
-          await sb.auth.exchangeCodeForSession(url);
-        } catch {
-          // ignore — OTP screen still works
-        }
+      const isAuthCallback =
+        url.includes('access_token') ||
+        url.includes('code=') ||
+        url.includes('type=recovery') ||
+        url.includes('type=signup');
+      if (!isAuthCallback) return;
+      try {
+        await sb.auth.exchangeCodeForSession(url);
+      } catch {
+        // Hash/token sessions are handled by detectSessionInUrl on web
+      }
+      if (url.includes('type=recovery') || url.includes('recovery')) {
+        router.replace('/sign-in');
       }
     };
 
@@ -74,7 +81,7 @@ function AuthBootstrap({ children }: { children: React.ReactNode }) {
       void handleUrl(url);
     });
     return () => sub.remove();
-  }, []);
+  }, [router]);
 
   if (!ready) {
     return (

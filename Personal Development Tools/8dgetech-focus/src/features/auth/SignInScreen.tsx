@@ -28,8 +28,7 @@ const fontBody = Platform.select({
 
 const ACCENT = PHASE_THEME.focus.bg;
 
-type LocalMode = 'signin' | 'signup';
-type CloudStep = 'email' | 'otp';
+type Mode = 'signin' | 'signup' | 'forgot' | 'reset';
 
 export function SignInScreen() {
   const { theme } = useTheme();
@@ -41,19 +40,21 @@ export function SignInScreen() {
     isAuthenticated,
     isGuest,
     cloudEnabled,
-    requestEmailOtp,
-    verifyEmailOtp,
+    passwordRecovery,
+    user,
     updateDisplayName,
     signIn,
     signUp,
+    requestPasswordReset,
+    updatePassword,
+    clearPasswordRecovery,
     signInAsGuest,
   } = useAuth();
 
-  const [localMode, setLocalMode] = useState<LocalMode>('signin');
-  const [cloudStep, setCloudStep] = useState<CloudStep>('email');
+  const [mode, setMode] = useState<Mode>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [otp, setOtp] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -65,7 +66,18 @@ export function SignInScreen() {
     }
   }, []);
 
+  useEffect(() => {
+    if (passwordRecovery) {
+      setMode('reset');
+      setError(null);
+      setInfo('Choose a new password for your account.');
+      setPassword('');
+      setConfirmPassword('');
+    }
+  }, [passwordRecovery]);
+
   const close = () => {
+    if (passwordRecovery) clearPasswordRecovery();
     if (router.canGoBack()) {
       router.back();
       return;
@@ -73,7 +85,7 @@ export function SignInScreen() {
     router.replace('/pomodoro');
   };
 
-  if (ready && isAuthenticated && !isGuest) {
+  if (ready && isAuthenticated && !isGuest && mode !== 'reset') {
     return <Redirect href="/pomodoro" />;
   }
 
@@ -85,45 +97,87 @@ export function SignInScreen() {
     router.replace('/pomodoro');
   };
 
-  const sendOtp = async () => {
+  const switchMode = (next: Mode) => {
+    setMode(next);
+    setError(null);
+    setInfo(null);
+    setPassword('');
+    setConfirmPassword('');
+  };
+
+  const submitSignIn = async () => {
     setError(null);
     setInfo(null);
     setBusy(true);
     try {
-      await requestEmailOtp(email);
-      setCloudStep('otp');
-      setInfo('Check your email for a 6-digit code (free Supabase mail).');
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not send code.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const confirmOtp = async () => {
-    setError(null);
-    setBusy(true);
-    try {
-      const account = await verifyEmailOtp(email, otp);
-      await afterAccount(account.id, name || undefined);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Invalid code.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const submitLocal = async () => {
-    setError(null);
-    setBusy(true);
-    try {
-      const account =
-        localMode === 'signin'
-          ? await signIn(email, password)
-          : await signUp(email, password, name || undefined);
+      const account = await signIn(email, password);
       await afterAccount(account.id);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const submitSignUp = async () => {
+    setError(null);
+    setInfo(null);
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const result = await signUp(email, password, name || undefined);
+      if (result.needsEmailConfirmation) {
+        setMode('signin');
+        setPassword('');
+        setConfirmPassword('');
+        setInfo(
+          'Account created. Check your email to confirm, then sign in with your password.',
+        );
+        return;
+      }
+      if (result.user) {
+        await afterAccount(result.user.id);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Something went wrong.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const submitForgot = async () => {
+    setError(null);
+    setInfo(null);
+    setBusy(true);
+    try {
+      await requestPasswordReset(email);
+      setInfo('If that email exists, we sent a reset link. Open it to set a new password.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not send reset email.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const submitReset = async () => {
+    setError(null);
+    setInfo(null);
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await updatePassword(password);
+      if (user?.id) {
+        pomodoroRepository.switchUser(user.id);
+      }
+      router.replace('/pomodoro');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not update password.');
     } finally {
       setBusy(false);
     }
@@ -133,6 +187,7 @@ export function SignInScreen() {
     setError(null);
     setBusy(true);
     try {
+      if (passwordRecovery) clearPasswordRecovery();
       if (!isAuthenticated) await signInAsGuest();
       close();
     } catch (e) {
@@ -142,11 +197,49 @@ export function SignInScreen() {
     }
   };
 
+  const title =
+    mode === 'signin'
+      ? 'Welcome back'
+      : mode === 'signup'
+        ? 'Create your account'
+        : mode === 'forgot'
+          ? 'Reset password'
+          : 'Set new password';
+
+  const subtitle =
+    mode === 'signin'
+      ? 'Sign in with your email and password.'
+      : mode === 'signup'
+        ? 'Register with email and choose a password you will use to sign in.'
+        : mode === 'forgot'
+          ? cloudEnabled
+            ? 'We will email you a link to choose a new password.'
+            : 'Password reset needs Supabase cloud auth configured.'
+          : 'Enter and confirm your new password.';
+
+  const primaryLabel =
+    mode === 'signin'
+      ? 'Sign in'
+      : mode === 'signup'
+        ? 'Create account'
+        : mode === 'forgot'
+          ? 'Send reset link'
+          : 'Save new password';
+
+  const onPrimary =
+    mode === 'signin'
+      ? submitSignIn
+      : mode === 'signup'
+        ? submitSignUp
+        : mode === 'forgot'
+          ? submitForgot
+          : submitReset;
+
   return (
     <View style={styles.overlay}>
       <Pressable
         style={styles.backdrop}
-        onPress={busy ? undefined : close}
+        onPress={busy || mode === 'reset' ? undefined : close}
         accessibilityLabel="Close sign in"
       />
       <KeyboardAvoidingView
@@ -160,7 +253,7 @@ export function SignInScreen() {
             {
               backgroundColor: c.surface,
               borderColor: c.border,
-              maxHeight: Math.min(height * 0.9, 640),
+              maxHeight: Math.min(height * 0.9, 680),
             },
           ]}
         >
@@ -168,21 +261,25 @@ export function SignInScreen() {
             <Text style={[styles.brand, { color: ACCENT, fontFamily: fontDisplay }]}>
               8dgeTech
             </Text>
-            <Pressable
-              onPress={close}
-              disabled={busy}
-              hitSlop={10}
-              accessibilityLabel="Close"
-              style={({ pressed }) => [
-                styles.closeBtn,
-                {
-                  backgroundColor: c.backgroundAlt,
-                  opacity: busy ? 0.4 : pressed ? 0.8 : 1,
-                },
-              ]}
-            >
-              <Text style={[styles.closeText, { color: c.onSurface }]}>×</Text>
-            </Pressable>
+            {mode !== 'reset' ? (
+              <Pressable
+                onPress={close}
+                disabled={busy}
+                hitSlop={10}
+                accessibilityLabel="Close"
+                style={({ pressed }) => [
+                  styles.closeBtn,
+                  {
+                    backgroundColor: c.backgroundAlt,
+                    opacity: busy ? 0.4 : pressed ? 0.8 : 1,
+                  },
+                ]}
+              >
+                <Text style={[styles.closeText, { color: c.onSurface }]}>×</Text>
+              </Pressable>
+            ) : (
+              <View style={{ width: 34 }} />
+            )}
           </View>
 
           <ScrollView
@@ -191,32 +288,21 @@ export function SignInScreen() {
             contentContainerStyle={styles.cardBody}
           >
             <Text style={[styles.title, { color: c.onSurface, fontFamily: fontDisplay }]}>
-              {cloudEnabled
-                ? cloudStep === 'email'
-                  ? 'Sign in with email'
-                  : 'Enter verification code'
-                : localMode === 'signin'
-                  ? 'Welcome back'
-                  : 'Create your account'}
+              {title}
             </Text>
             <Text style={[styles.sub, { color: c.onSurfaceMuted, fontFamily: fontBody }]}>
-              {cloudEnabled
-                ? 'Free verified email login. No password. Phone OTP comes later (SMS costs money).'
-                : 'Cloud auth not configured yet — local device account. Add Supabase keys to .env for free email OTP.'}
+              {subtitle}
             </Text>
 
-            {!cloudEnabled ? (
+            {mode === 'signin' || mode === 'signup' ? (
               <View style={styles.tabs}>
                 <Pressable
-                  onPress={() => {
-                    setLocalMode('signin');
-                    setError(null);
-                  }}
+                  onPress={() => switchMode('signin')}
                   style={[
                     styles.tab,
                     {
-                      borderColor: localMode === 'signin' ? ACCENT : c.border,
-                      backgroundColor: localMode === 'signin' ? ACCENT : 'transparent',
+                      borderColor: mode === 'signin' ? ACCENT : c.border,
+                      backgroundColor: mode === 'signin' ? ACCENT : 'transparent',
                     },
                   ]}
                 >
@@ -224,7 +310,7 @@ export function SignInScreen() {
                     style={[
                       styles.tabText,
                       {
-                        color: localMode === 'signin' ? '#FFFFFF' : c.onSurfaceMuted,
+                        color: mode === 'signin' ? '#FFFFFF' : c.onSurfaceMuted,
                         fontFamily: fontBody,
                       },
                     ]}
@@ -233,15 +319,12 @@ export function SignInScreen() {
                   </Text>
                 </Pressable>
                 <Pressable
-                  onPress={() => {
-                    setLocalMode('signup');
-                    setError(null);
-                  }}
+                  onPress={() => switchMode('signup')}
                   style={[
                     styles.tab,
                     {
-                      borderColor: localMode === 'signup' ? ACCENT : c.border,
-                      backgroundColor: localMode === 'signup' ? ACCENT : 'transparent',
+                      borderColor: mode === 'signup' ? ACCENT : c.border,
+                      backgroundColor: mode === 'signup' ? ACCENT : 'transparent',
                     },
                   ]}
                 >
@@ -249,7 +332,7 @@ export function SignInScreen() {
                     style={[
                       styles.tabText,
                       {
-                        color: localMode === 'signup' ? '#FFFFFF' : c.onSurfaceMuted,
+                        color: mode === 'signup' ? '#FFFFFF' : c.onSurfaceMuted,
                         fontFamily: fontBody,
                       },
                     ]}
@@ -260,8 +343,7 @@ export function SignInScreen() {
               </View>
             ) : null}
 
-            {(!cloudEnabled && localMode === 'signup') ||
-            (cloudEnabled && cloudStep === 'email') ? (
+            {mode === 'signup' ? (
               <Field
                 label="Name (optional)"
                 value={name}
@@ -271,39 +353,55 @@ export function SignInScreen() {
               />
             ) : null}
 
-            <Field
-              label="Email"
-              value={email}
-              onChangeText={setEmail}
-              placeholder="you@email.com"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoComplete="email"
-              editable={!(cloudEnabled && cloudStep === 'otp')}
-            />
-
-            {cloudEnabled && cloudStep === 'otp' ? (
+            {mode !== 'reset' ? (
               <Field
-                label="6-digit code"
-                value={otp}
-                onChangeText={setOtp}
-                placeholder="123456"
-                keyboardType="number-pad"
-                autoComplete="one-time-code"
+                label="Email"
+                value={email}
+                onChangeText={setEmail}
+                placeholder="you@email.com"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoComplete="email"
               />
             ) : null}
 
-            {!cloudEnabled ? (
+            {mode === 'signin' || mode === 'signup' || mode === 'reset' ? (
               <Field
-                label="Password"
+                label={mode === 'reset' ? 'New password' : 'Password'}
                 value={password}
                 onChangeText={setPassword}
                 placeholder={
-                  localMode === 'signup' ? 'At least 6 characters' : 'Your password'
+                  mode === 'signin' ? 'Your password' : 'At least 6 characters'
                 }
                 secureTextEntry
-                autoComplete={localMode === 'signup' ? 'new-password' : 'password'}
+                autoComplete={mode === 'signin' ? 'password' : 'new-password'}
               />
+            ) : null}
+
+            {mode === 'signup' || mode === 'reset' ? (
+              <Field
+                label="Confirm password"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                placeholder="Re-enter password"
+                secureTextEntry
+                autoComplete="new-password"
+              />
+            ) : null}
+
+            {mode === 'signin' && cloudEnabled ? (
+              <Pressable
+                onPress={() => switchMode('forgot')}
+                disabled={busy}
+                hitSlop={6}
+                style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1, alignSelf: 'flex-start' })}
+              >
+                <Text
+                  style={[styles.link, { color: ACCENT, fontFamily: fontBody }]}
+                >
+                  Forgot password?
+                </Text>
+              </Pressable>
             ) : null}
 
             {info ? (
@@ -319,13 +417,7 @@ export function SignInScreen() {
             ) : null}
 
             <Pressable
-              onPress={
-                cloudEnabled
-                  ? cloudStep === 'email'
-                    ? sendOtp
-                    : confirmOtp
-                  : submitLocal
-              }
+              onPress={onPrimary}
               disabled={busy}
               style={({ pressed }) => [
                 styles.primaryBtn,
@@ -341,24 +433,16 @@ export function SignInScreen() {
                 <Text
                   style={[styles.primaryLabel, { color: '#FFFFFF', fontFamily: fontBody }]}
                 >
-                  {cloudEnabled
-                    ? cloudStep === 'email'
-                      ? 'Send code'
-                      : 'Verify & continue'
-                    : localMode === 'signin'
-                      ? 'Sign in'
-                      : 'Create account'}
+                  {primaryLabel}
                 </Text>
               )}
             </Pressable>
 
-            {cloudEnabled && cloudStep === 'otp' ? (
+            {mode === 'forgot' || mode === 'reset' ? (
               <Pressable
                 onPress={() => {
-                  setCloudStep('email');
-                  setOtp('');
-                  setInfo(null);
-                  setError(null);
+                  if (mode === 'reset') clearPasswordRecovery();
+                  switchMode('signin');
                 }}
                 disabled={busy}
                 style={({ pressed }) => [
@@ -372,31 +456,35 @@ export function SignInScreen() {
                 <Text
                   style={[styles.ghostLabel, { color: c.onSurface, fontFamily: fontBody }]}
                 >
-                  Use a different email
+                  Back to sign in
                 </Text>
               </Pressable>
             ) : null}
 
-            <Pressable
-              onPress={continueAsGuest}
-              disabled={busy}
-              style={({ pressed }) => [
-                styles.ghostBtn,
-                {
-                  borderColor: c.border,
-                  opacity: busy ? 0.45 : pressed ? 0.85 : 1,
-                },
-              ]}
-            >
-              <Text style={[styles.ghostLabel, { color: c.onSurface, fontFamily: fontBody }]}>
-                Continue without signing in
-              </Text>
-            </Pressable>
+            {mode !== 'reset' ? (
+              <Pressable
+                onPress={continueAsGuest}
+                disabled={busy}
+                style={({ pressed }) => [
+                  styles.ghostBtn,
+                  {
+                    borderColor: c.border,
+                    opacity: busy ? 0.45 : pressed ? 0.85 : 1,
+                  },
+                ]}
+              >
+                <Text
+                  style={[styles.ghostLabel, { color: c.onSurface, fontFamily: fontBody }]}
+                >
+                  Continue without signing in
+                </Text>
+              </Pressable>
+            ) : null}
 
             <Text style={[styles.footnote, { color: c.onSurfaceMuted, fontFamily: fontBody }]}>
               {cloudEnabled
-                ? 'Verified accounts sync tasks & sessions to free Supabase. Admin: set role=admin in profiles table.'
-                : 'Copy .env.example → .env, create a free Supabase project, run supabase/schema.sql, restart Expo.'}
+                ? 'Accounts sync to Supabase. Add your site URL under Authentication → URL Configuration so confirm & reset emails work.'
+                : 'Local device account only. Add Supabase keys in .env for cloud sync and password-reset emails.'}
             </Text>
           </ScrollView>
         </View>
@@ -532,6 +620,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: Platform.OS === 'web' ? 12 : 14,
     fontSize: 15,
+  },
+  link: {
+    fontSize: 13,
+    fontWeight: '700',
+    marginTop: -2,
   },
   error: {
     fontSize: 13,

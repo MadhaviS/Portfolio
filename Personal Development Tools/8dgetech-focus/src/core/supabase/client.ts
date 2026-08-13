@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
+import * as Linking from 'expo-linking';
 import { createAuthStorage } from './authStorage';
 
 function normalizeSupabaseUrl(raw: string): string {
@@ -51,9 +52,7 @@ export function getSupabase(): SupabaseClient | null {
   return client;
 }
 
+/** Confirm / reset-password links land on the sign-in screen. */
 export function authRedirectTo(): string {
-  if (Platform.OS === 'web' && typeof window !== 'undefined') {
-    return `${window.location.origin}/sign-in`;
-  }
-  return '8dgetech-focus://sign-in';
+  return Linking.createURL('sign-in');
 }
