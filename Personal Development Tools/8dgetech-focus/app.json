@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Pulse",
-    "slug": "pulse",
+    "slug": "pomodoro",
     "owner": "salunkemm",
     "version": "1.0.0",
     "orientation": "portrait",

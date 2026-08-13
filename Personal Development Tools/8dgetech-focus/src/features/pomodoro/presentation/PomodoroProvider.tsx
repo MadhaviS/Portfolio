@@ -76,6 +76,12 @@ export function PomodoroProvider({ children }: { children: ReactNode }) {
         if (runningRef.current) pauseRef.current();
         else startRef.current();
       },
+      onPause: () => {
+        pauseRef.current();
+      },
+      onResume: () => {
+        startRef.current();
+      },
     }),
     [],
   );

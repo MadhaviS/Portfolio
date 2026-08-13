@@ -20,6 +20,8 @@ type PipHandlers = {
   onDismiss: () => void;
   onOpenApp: () => void;
   onToggleRun: () => void;
+  onPause: () => void;
+  onResume: () => void;
 };
 
 type PipApi = {
@@ -86,6 +88,17 @@ let keepAlive: {
   osc: OscillatorNode;
   gain: GainNode;
 } | null = null;
+
+/** True while we play/pause <video> to match the timer — ignore those events. */
+let applyingVideoSync = false;
+/** When the tab was last hidden — used to ignore iOS auto-pause on background. */
+let pageHiddenAtMs = 0;
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) pageHiddenAtMs = Date.now();
+  });
+}
 
 function getPipApi(): PipApi | null {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
@@ -379,17 +392,76 @@ function drawVideoPipFrame(state: PipTimerState) {
 function syncVideoPlayback(state: PipTimerState) {
   if (!videoPip) return;
   const { video } = videoPip;
-  if (state.running) {
-    startKeepAlive();
-    if (video.paused) {
-      void video.play().catch(() => {});
+  applyingVideoSync = true;
+  try {
+    if (state.running) {
+      startKeepAlive();
+      if (video.paused) {
+        void video.play().catch(() => {});
+      }
+    } else {
+      stopKeepAlive();
+      if (!video.paused) {
+        video.pause();
+      }
     }
-  } else {
-    stopKeepAlive();
-    if (!video.paused) {
-      video.pause();
-    }
+  } finally {
+    // Let the play/pause events from this sync settle before bridging again.
+    window.setTimeout(() => {
+      applyingVideoSync = false;
+    }, 80);
   }
+}
+
+function applyTimerRunning(running: boolean) {
+  if (!videoPip) return;
+  if (running) {
+    if (videoPip.lastState.running) return;
+    handlersRef?.onResume();
+    videoPip.lastState = {
+      ...videoPip.lastState,
+      running: true,
+      endsAt:
+        videoPip.lastState.endsAt ??
+        Date.now() + liveRemaining(videoPip.lastState) * 1000,
+    };
+  } else {
+    if (!videoPip.lastState.running) return;
+    const leftNow = liveRemaining(videoPip.lastState);
+    handlersRef?.onPause();
+    videoPip.lastState = {
+      ...videoPip.lastState,
+      running: false,
+      remaining: leftNow,
+      endsAt: null,
+    };
+  }
+  drawVideoPipFrame(videoPip.lastState);
+  wireMediaSession(videoPip.lastState);
+}
+
+function onVideoPlay() {
+  if (applyingVideoSync || !videoPip) return;
+  // Lock-screen / system Now Playing pressed Play on the <video>.
+  applyTimerRunning(true);
+}
+
+function onVideoPause() {
+  if (applyingVideoSync || !videoPip) return;
+  // iOS often auto-pauses media when Chrome is backgrounded — keep the timer.
+  if (document.hidden && Date.now() - pageHiddenAtMs < 800) {
+    if (videoPip.lastState.running) {
+      applyingVideoSync = true;
+      void videoPip.video.play().finally(() => {
+        window.setTimeout(() => {
+          applyingVideoSync = false;
+        }, 80);
+      });
+    }
+    return;
+  }
+  // User pressed Pause on lock screen / Now Playing.
+  applyTimerRunning(false);
 }
 
 function refreshVideoPipFromClock() {
@@ -433,32 +505,12 @@ function wireMediaSession(state: PipTimerState) {
     }
 
     navigator.mediaSession.setActionHandler('play', () => {
-      if (videoPip?.lastState.running) return;
-      handlersRef?.onToggleRun();
-      if (videoPip) {
-        videoPip.lastState = {
-          ...videoPip.lastState,
-          running: true,
-          endsAt:
-            videoPip.lastState.endsAt ??
-            Date.now() + liveRemaining(videoPip.lastState) * 1000,
-        };
-        refreshVideoPipFromClock();
-      }
+      applyTimerRunning(true);
+      if (videoPip) syncVideoPlayback(videoPip.lastState);
     });
     navigator.mediaSession.setActionHandler('pause', () => {
-      if (!videoPip?.lastState.running) return;
-      handlersRef?.onToggleRun();
-      if (videoPip) {
-        const leftNow = liveRemaining(videoPip.lastState);
-        videoPip.lastState = {
-          ...videoPip.lastState,
-          running: false,
-          remaining: leftNow,
-          endsAt: null,
-        };
-        refreshVideoPipFromClock();
-      }
+      applyTimerRunning(false);
+      if (videoPip) syncVideoPlayback(videoPip.lastState);
     });
     navigator.mediaSession.setActionHandler('stop', () => {
       handlersRef?.onOpenApp();
@@ -490,6 +542,8 @@ function stopVideoPip(silent: boolean) {
   }
   try {
     video.pause();
+    video.removeEventListener('play', onVideoPlay);
+    video.removeEventListener('pause', onVideoPause);
     const stream = video.srcObject as MediaStream | null;
     stream?.getTracks().forEach((t) => t.stop());
     video.srcObject = null;
@@ -545,11 +599,15 @@ async function openVideoPip(
     tick: null,
     lastState: state,
   };
+  video.addEventListener('play', onVideoPlay);
+  video.addEventListener('pause', onVideoPause);
   refreshVideoPipFromClock();
   videoPip.tick = setInterval(refreshVideoPipFromClock, 1000);
 
   const onLeave = () => {
     video.removeEventListener('leavepictureinpicture', onLeave);
+    video.removeEventListener('play', onVideoPlay);
+    video.removeEventListener('pause', onVideoPause);
     if (silentClose) {
       silentClose = false;
       stopVideoPip(true);
