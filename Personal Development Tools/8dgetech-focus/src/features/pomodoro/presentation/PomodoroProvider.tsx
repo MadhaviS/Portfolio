@@ -15,6 +15,7 @@ import { usePomodoroTimer } from './usePomodoroTimer';
 import {
   closeTimerPip,
   emitOpenFromPip,
+  isTimerPipOpen,
   openTimerPip,
   setTimerPipHandlers,
   updateTimerPip,
@@ -53,9 +54,15 @@ export function PomodoroProvider({ children }: { children: ReactNode }) {
     () => ({
       onClose: () => {
         setPipOpen(false);
-        // Keep minimized so the in-app bubble returns (friendlier than vanishing)
+        // Browser closed PiP — keep a single in-app bubble as fallback.
         setMinimized(true);
         setOverlayDismissed(false);
+      },
+      onDismiss: () => {
+        closeTimerPip();
+        setPipOpen(false);
+        setMinimized(false);
+        setOverlayDismissed(true);
       },
       onOpenApp: () => {
         restorePhaseRef.current(minimizedPhaseRef.current);
@@ -113,25 +120,47 @@ export function PomodoroProvider({ children }: { children: ReactNode }) {
   const minimize = useCallback(() => {
     minimizedPhaseRef.current = timer.phase;
     setOverlayDismissed(false);
-    setMinimized(true);
+    // Prefer a single surface: try system PiP first, then fall back to the
+    // in-app bubble only if PiP is unavailable — never show both.
     void openTimerPip(
       {
         remaining: timer.remaining,
+        total: timer.total,
         phase: timer.phase,
         running: timer.running,
         taskTitle: timer.activeTask?.title ?? null,
+        endsAt: timer.endsAt,
       },
       pipHandlers,
     ).then((ok) => {
       setPipOpen(ok);
+      setMinimized(true);
     });
   }, [
     pipHandlers,
     timer.activeTask?.title,
+    timer.endsAt,
     timer.phase,
     timer.remaining,
     timer.running,
+    timer.total,
   ]);
+
+  // Keep React state aligned with the real PiP window (avoids bubble + PiP).
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const sync = () => {
+      const open = isTimerPipOpen();
+      setPipOpen((prev) => (prev === open ? prev : open));
+    };
+    sync();
+    const id = setInterval(sync, 800);
+    document.addEventListener('visibilitychange', sync);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', sync);
+    };
+  }, []);
 
   // If phase advances while minimized (auto-break), keep the reopen tab in sync.
   useEffect(() => {
@@ -143,13 +172,17 @@ export function PomodoroProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     updateTimerPip({
       remaining: timer.remaining,
+      total: timer.total,
       phase: timer.phase,
       running: timer.running,
       taskTitle: timer.activeTask?.title ?? null,
+      endsAt: timer.endsAt,
     });
   }, [
     timer.activeTask?.title,
+    timer.endsAt,
     timer.remaining,
+    timer.total,
     timer.phase,
     timer.running,
   ]);

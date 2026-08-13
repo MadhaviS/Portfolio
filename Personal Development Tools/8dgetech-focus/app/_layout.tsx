@@ -153,7 +153,7 @@ function RootNavigator() {
             <Stack.Screen
               name="pomodoro"
               options={{
-                title: 'Pomodoro',
+                title: 'Pulse',
                 headerShown: false,
                 contentStyle: { backgroundColor: 'transparent' },
               }}

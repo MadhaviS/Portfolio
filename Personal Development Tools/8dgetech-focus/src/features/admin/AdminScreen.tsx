@@ -553,7 +553,7 @@ function EmptyState({
         Nothing here yet
       </Text>
       <Text style={[styles.emptyBody, { color: colors.onSurfaceMuted, fontFamily: fontBody }]}>
-        Data appears after people sign in and run Pomodoros.
+        Data appears after people sign in and run Pulse sessions.
       </Text>
     </View>
   );

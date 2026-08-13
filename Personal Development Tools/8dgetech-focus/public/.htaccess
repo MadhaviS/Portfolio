@@ -1,17 +1,27 @@
-# Hostinger (Apache) — Expo app under /en/portfolio
+# Hostinger / LiteSpeed — Expo static export under /en/portfolio
+# Routes are exported as *.html (pomodoro.html). Clean URLs need a rewrite.
+
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /en/portfolio/
 
-  # Don't rewrite real files or folders
-  RewriteCond %{REQUEST_FILENAME} !-f
-  RewriteCond %{REQUEST_FILENAME} !-d
+  # Keep real files and directories as-is
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
 
-  # Client routes → this folder's index.html
+  # /pomodoro → pomodoro.html (and same for admin, home, sign-in, …)
+  RewriteCond %{REQUEST_FILENAME}.html -f
+  RewriteRule ^(.*)$ $1.html [L]
+
+  # Absolute fallback if REQUEST_FILENAME mapping differs on LiteSpeed
+  RewriteCond %{DOCUMENT_ROOT}/en/portfolio/$1.html -f
+  RewriteRule ^(.*)$ $1.html [L]
+
+  # SPA / client routes → index
   RewriteRule ^ index.html [L]
 </IfModule>
 
-# Optional: cache static assets
 <IfModule mod_expires.c>
   ExpiresActive On
   ExpiresByType text/css "access plus 7 days"

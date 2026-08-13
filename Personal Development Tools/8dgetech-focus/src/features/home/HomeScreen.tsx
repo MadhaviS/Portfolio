@@ -1,8 +1,9 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ImageBackground,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -13,48 +14,289 @@ import Animated, {
   Easing,
   useAnimatedStyle,
   useSharedValue,
+  withDelay,
   withRepeat,
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
+import Feather from '@expo/vector-icons/Feather';
 import { useTheme } from '../../core/theme/ThemeProvider';
 import { fontBody, fontDisplay } from '../../core/theme/fonts';
 import { AuthAccountButton } from '../../core/auth/AuthAccountButton';
 import {
-  IconChart,
-  IconChecklist,
   IconChevron,
+  IconDepth,
+  IconDrift,
   IconMoon,
-  IconPerson,
+  IconPulse,
   IconSun,
-  IconTomatoClock,
 } from '../../core/theme/LineIcons';
+import {
+  getComingSoonApps,
+  getEnabledApps,
+  type MiniAppId,
+  type MiniAppStory,
+} from '../../registry/appRegistry';
 
 const DOODLE_BG_LIGHT = require('../../../assets/landing-doodles-bg-light.jpg');
 const DOODLE_BG_DARK = require('../../../assets/landing-doodles-bg-dark.jpg');
 
-const FEATURES = [
-  {
-    title: 'Stay focused',
-    body: 'Eliminate distractions and get more done.',
-    Icon: IconTomatoClock,
-  },
-  {
-    title: 'Build better habits',
-    body: 'Small steps every day lead to big results.',
-    Icon: IconChecklist,
-  },
-  {
-    title: 'Track progress',
-    body: 'See your growth and stay motivated.',
-    Icon: IconChart,
-  },
-  {
-    title: 'For you',
-    body: 'Tools that fit your goals and your lifestyle.',
-    Icon: IconPerson,
-  },
-] as const;
+const APP_ICONS: Record<
+  MiniAppId,
+  React.ComponentType<{ color?: string; size?: number }>
+> = {
+  pulse: IconPulse,
+  drift: IconDrift,
+  depth: IconDepth,
+};
+
+const RHYTHM = [
+  { label: '25', hint: 'focus', kind: 'work' as const },
+  { label: '5', hint: 'break', kind: 'rest' as const },
+  { label: '25', hint: 'focus', kind: 'work' as const },
+  { label: '5', hint: 'break', kind: 'rest' as const },
+  { label: '15', hint: 'long', kind: 'long' as const },
+];
+
+function RhythmBeat({
+  label,
+  hint,
+  kind,
+  brand,
+  inkSoft,
+  delay,
+  tiny,
+}: {
+  label: string;
+  hint: string;
+  kind: 'work' | 'rest' | 'long';
+  brand: string;
+  inkSoft: string;
+  delay: number;
+  tiny: boolean;
+}) {
+  const pulse = useSharedValue(0.55);
+  useEffect(() => {
+    pulse.value = withDelay(
+      delay,
+      withRepeat(
+        withSequence(
+          withTiming(1, { duration: 900, easing: Easing.inOut(Easing.sin) }),
+          withTiming(0.55, { duration: 900, easing: Easing.inOut(Easing.sin) }),
+        ),
+        -1,
+        false,
+      ),
+    );
+  }, [delay, pulse]);
+
+  const glow = useAnimatedStyle(() => ({
+    opacity: 0.35 + pulse.value * 0.65,
+    transform: [{ scale: 0.92 + pulse.value * 0.08 }],
+  }));
+
+  const fill =
+    kind === 'work' ? brand : kind === 'long' ? `${brand}CC` : 'transparent';
+  const size = tiny ? 40 : 48;
+
+  return (
+    <View style={styles.beat}>
+      <Animated.View
+        style={[
+          styles.beatOrb,
+          glow,
+          {
+            backgroundColor: fill,
+            borderColor: kind === 'rest' ? brand : 'transparent',
+            borderWidth: kind === 'rest' ? 2 : 0,
+            width: size,
+            height: size,
+            borderRadius: size / 2,
+          },
+        ]}
+      >
+        <Text
+          style={[
+            styles.beatNum,
+            {
+              color: kind === 'rest' ? brand : '#FFFFFF',
+              fontFamily: fontDisplay,
+              fontSize: tiny ? 14 : 16,
+            },
+          ]}
+        >
+          {label}
+        </Text>
+      </Animated.View>
+      <Text
+        style={[
+          styles.beatHint,
+          { color: inkSoft, fontFamily: fontBody, fontSize: tiny ? 10 : 11 },
+        ]}
+      >
+        {hint}
+      </Text>
+    </View>
+  );
+}
+
+function StoryBody({
+  story,
+  brand,
+  ink,
+  inkSoft,
+  border,
+  tiny,
+  narrow,
+  showRhythm,
+}: {
+  story: MiniAppStory;
+  brand: string;
+  ink: string;
+  inkSoft: string;
+  border: string;
+  tiny: boolean;
+  narrow: boolean;
+  showRhythm?: boolean;
+}) {
+  return (
+    <View>
+      <Text
+        style={[
+          styles.storyKicker,
+          { color: brand, fontFamily: fontBody, fontSize: tiny ? 11 : 12 },
+        ]}
+      >
+        {story.kicker}
+      </Text>
+      <Text
+        style={[
+          styles.storyTitle,
+          {
+            color: ink,
+            fontFamily: fontDisplay,
+            fontSize: tiny ? 22 : narrow ? 26 : 32,
+            lineHeight: tiny ? 28 : narrow ? 32 : 40,
+          },
+        ]}
+      >
+        {story.title}
+      </Text>
+      <Text
+        style={[
+          styles.storyLead,
+          {
+            color: inkSoft,
+            fontFamily: fontBody,
+            fontSize: tiny ? 13 : 15,
+            lineHeight: tiny ? 19 : 23,
+          },
+        ]}
+      >
+        {story.lead}
+      </Text>
+
+      {showRhythm ? (
+        <View style={styles.rhythmBlock}>
+          <Text
+            style={[
+              styles.rhythmLabel,
+              { color: ink, fontFamily: fontBody, fontSize: tiny ? 12 : 13 },
+            ]}
+          >
+            The classic pulse
+          </Text>
+          <View style={styles.rhythmRow}>
+            {RHYTHM.map((beat, i) => (
+              <React.Fragment key={`${beat.label}-${i}`}>
+                {i > 0 ? (
+                  <View
+                    style={[styles.rhythmLink, { backgroundColor: `${brand}44` }]}
+                  />
+                ) : null}
+                <RhythmBeat
+                  {...beat}
+                  brand={brand}
+                  inkSoft={inkSoft}
+                  delay={i * 180}
+                  tiny={tiny}
+                />
+              </React.Fragment>
+            ))}
+          </View>
+          <Text
+            style={[
+              styles.rhythmCaption,
+              {
+                color: inkSoft,
+                fontFamily: fontBody,
+                fontSize: tiny ? 12 : 13,
+                lineHeight: 19,
+              },
+            ]}
+          >
+            Four focus blocks, then a longer rest — a tempo your brain can keep.
+          </Text>
+        </View>
+      ) : null}
+
+      <View style={styles.whyBlock}>
+        {story.points.map((item, i) => (
+          <View
+            key={item.mark}
+            style={[
+              styles.whyRow,
+              i < story.points.length - 1 && {
+                borderBottomColor: border,
+                borderBottomWidth: StyleSheet.hairlineWidth,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.whyMark,
+                {
+                  color: brand,
+                  fontFamily: fontDisplay,
+                  fontSize: tiny ? 17 : 20,
+                },
+              ]}
+            >
+              {item.mark}
+            </Text>
+            <View style={styles.whyCopy}>
+              <Text
+                style={[
+                  styles.whyItemTitle,
+                  {
+                    color: ink,
+                    fontFamily: fontBody,
+                    fontSize: tiny ? 14 : 16,
+                  },
+                ]}
+              >
+                {item.title}
+              </Text>
+              <Text
+                style={[
+                  styles.whyItemBody,
+                  {
+                    color: inkSoft,
+                    fontFamily: fontBody,
+                    fontSize: tiny ? 12 : 14,
+                    lineHeight: tiny ? 17 : 20,
+                  },
+                ]}
+              >
+                {item.body}
+              </Text>
+            </View>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
 
 export function HomeScreen() {
   const { theme, toggleLightDark, resolved } = useTheme();
@@ -69,15 +311,22 @@ export function HomeScreen() {
   const short = height < 720;
   const tiny = height < 600 || width < 360;
   const padX = width < 480 ? 18 : width < 900 ? 32 : 48;
-  const padY = short ? 12 : 20;
+  const padY = short ? 12 : 18;
 
-  const titleSize = tiny ? 42 : short ? 52 : narrow ? 64 : 84;
+  const titleSize = tiny ? 40 : short ? 50 : narrow ? 60 : 78;
   const titleLine = titleSize * 1.05;
-  const subSize = tiny ? 13 : short ? 14 : 17;
-  const ctaPadV = tiny ? 14 : short ? 16 : 22;
-  const ctaTitleSize = tiny ? 20 : short ? 24 : 30;
-  const iconSize = tiny ? 28 : short ? 32 : 36;
-  const featureIconSize = tiny ? 20 : 24;
+  const subSize = tiny ? 13 : short ? 14 : 16;
+  const ctaPadV = tiny ? 13 : short ? 15 : 20;
+  const ctaTitleSize = tiny ? 19 : short ? 23 : 28;
+  const iconSize = tiny ? 26 : short ? 30 : 34;
+
+  const pulseApp = getEnabledApps().find((a) => a.id === 'pulse');
+  const upcoming = getComingSoonApps();
+  const [openStory, setOpenStory] = useState<MiniAppId | null>(null);
+
+  const toggleStory = (id: MiniAppId) => {
+    setOpenStory((prev) => (prev === id ? null : id));
+  };
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return;
@@ -100,6 +349,8 @@ export function HomeScreen() {
     transform: [{ translateY: bob.value * -4 }],
   }));
 
+  const pulseOpen = openStory === 'pulse';
+
   return (
     <ImageBackground
       source={isLight ? DOODLE_BG_LIGHT : DOODLE_BG_DARK}
@@ -107,223 +358,390 @@ export function HomeScreen() {
       imageStyle={styles.bgImage}
       resizeMode="cover"
     >
-      <View
-        style={[
-          styles.root,
-          {
-            paddingHorizontal: padX,
-            paddingTop: padY,
-            paddingBottom: padY + 4,
-          },
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.scrollContent,
+          !openStory && { minHeight: height },
         ]}
+        showsVerticalScrollIndicator={!!openStory}
       >
-        <View style={styles.topBar}>
-          <Text
-            style={[
-              styles.company,
-              {
-                color: ink,
-                fontFamily: fontDisplay,
-                fontSize: tiny ? 20 : 26,
-              },
-            ]}
-          >
-            8dgeTech
-          </Text>
-          <View style={styles.topActions}>
-            <AuthAccountButton
-              color={ink}
-              iconSize={tiny ? 16 : 18}
-              showLabel
-              labelStyle={[
-                styles.ghostLabel,
-                { color: ink, fontFamily: fontBody, fontSize: tiny ? 12 : 14 },
-              ]}
-              style={({ pressed }) => [
-                styles.ghostBtn,
-                {
-                  borderColor: c.border,
-                  backgroundColor: isLight ? '#FFFFFF' : c.surface,
-                  opacity: pressed ? 0.88 : 1,
-                  paddingVertical: tiny ? 8 : 11,
-                  paddingHorizontal: tiny ? 12 : 18,
-                },
-              ]}
-            />
-            <Pressable
-              onPress={toggleLightDark}
-              accessibilityLabel="Toggle color theme"
-              style={({ pressed }) => [
-                styles.iconBtn,
-                {
-                  borderColor: c.border,
-                  backgroundColor: isLight ? '#FFFFFF' : c.surface,
-                  opacity: pressed ? 0.88 : 1,
-                  width: tiny ? 38 : 44,
-                  height: tiny ? 38 : 44,
-                },
-              ]}
-            >
-              {isLight ? (
-                <IconSun color={ink} size={17} />
-              ) : (
-                <IconMoon color={ink} size={17} />
-              )}
-            </Pressable>
-          </View>
-        </View>
-
-        <View style={styles.hero}>
-          <Text
-            style={[
-              styles.heroTitle,
-              {
-                color: ink,
-                fontFamily: fontDisplay,
-                fontSize: titleSize,
-                lineHeight: titleLine,
-              },
-            ]}
-          >
-            Focus
-          </Text>
-          <Text
-            style={[
-              styles.heroSub,
-              {
-                color: inkSoft,
-                fontFamily: fontBody,
-                fontSize: subSize,
-                lineHeight: subSize * 1.45,
-              },
-            ]}
-          >
-            {narrow
-              ? 'A personal toolkit to focus, build habits, and grow.'
-              : 'A personal development toolkit to help you focus,\nbuild habits, and grow every day.'}
-          </Text>
-
-          <Animated.View
-            style={[
-              styles.ctaWrap,
-              cardMotion,
-              { marginTop: short ? 10 : 16 },
-              Platform.OS === 'web'
-                ? ({
-                    boxShadow: `0 18px 40px ${brand}40`,
-                  } as object)
-                : null,
-            ]}
-          >
-            <Pressable
-              onPress={() => router.push('/pomodoro')}
-              style={({ pressed }) => [
-                styles.ctaCard,
-                {
-                  backgroundColor: brand,
-                  transform: [{ scale: pressed ? 0.99 : 1 }],
-                  shadowColor: brand,
-                  paddingVertical: ctaPadV,
-                  paddingHorizontal: tiny ? 16 : 24,
-                },
-              ]}
-              accessibilityRole="link"
-              accessibilityLabel="Open Pomodoro"
-            >
-              <View
-                style={[
-                  styles.ctaIcon,
-                  {
-                    width: iconSize + 20,
-                    height: iconSize + 20,
-                    borderRadius: (iconSize + 20) / 2,
-                  },
-                ]}
-              >
-                <IconTomatoClock color="#FFFFFF" size={iconSize} />
-              </View>
-              <View style={styles.ctaCopy}>
-                <Text
-                  style={[
-                    styles.ctaTitle,
-                    { fontFamily: fontDisplay, fontSize: ctaTitleSize },
-                  ]}
-                >
-                  Pomodoro
-                </Text>
-                <Text
-                  style={[
-                    styles.ctaMeta,
-                    { fontFamily: fontBody, fontSize: tiny ? 12 : 14 },
-                  ]}
-                >
-                  Focus • breaks • tasks
-                </Text>
-              </View>
-              <IconChevron color="#FFFFFF" size={tiny ? 18 : 24} />
-            </Pressable>
-          </Animated.View>
-        </View>
-
         <View
           style={[
-            styles.featuresWrap,
+            styles.fold,
             {
-              borderTopColor: c.border,
-              paddingTop: short ? 14 : 22,
+              paddingHorizontal: padX,
+              paddingTop: padY,
+              paddingBottom: openStory ? 8 : padY,
+              ...(!openStory
+                ? { flexGrow: 1, minHeight: height - padY }
+                : null),
             },
           ]}
         >
-          <View style={[styles.features, narrow && styles.featuresGrid]}>
-            {FEATURES.map((f, i) => {
-              const FeatureIcon = f.Icon;
-              return (
-                <View
-                  key={f.title}
+          <View style={styles.topBar}>
+            <Text
+              style={[
+                styles.company,
+                {
+                  color: ink,
+                  fontFamily: fontDisplay,
+                  fontSize: tiny ? 20 : 26,
+                },
+              ]}
+            >
+              8dgeTech
+            </Text>
+            <View style={styles.topActions}>
+              <AuthAccountButton
+                color={ink}
+                iconSize={tiny ? 16 : 18}
+                showLabel
+                labelStyle={[
+                  styles.ghostLabel,
+                  {
+                    color: ink,
+                    fontFamily: fontBody,
+                    fontSize: tiny ? 12 : 14,
+                  },
+                ]}
+                style={({ pressed }) => [
+                  styles.ghostBtn,
+                  {
+                    borderColor: c.border,
+                    backgroundColor: isLight ? '#FFFFFF' : c.surface,
+                    opacity: pressed ? 0.88 : 1,
+                    paddingVertical: tiny ? 8 : 10,
+                    paddingHorizontal: tiny ? 12 : 16,
+                  },
+                ]}
+              />
+              <Pressable
+                onPress={toggleLightDark}
+                accessibilityLabel="Toggle color theme"
+                style={({ pressed }) => [
+                  styles.iconBtn,
+                  {
+                    borderColor: c.border,
+                    backgroundColor: isLight ? '#FFFFFF' : c.surface,
+                    opacity: pressed ? 0.88 : 1,
+                    width: tiny ? 38 : 42,
+                    height: tiny ? 38 : 42,
+                  },
+                ]}
+              >
+                {isLight ? (
+                  <IconSun color={ink} size={17} />
+                ) : (
+                  <IconMoon color={ink} size={17} />
+                )}
+              </Pressable>
+            </View>
+          </View>
+
+          <View style={[styles.hero, !openStory && styles.heroGrow]}>
+            <Text
+              style={[
+                styles.heroTitle,
+                {
+                  color: ink,
+                  fontFamily: fontDisplay,
+                  fontSize: titleSize,
+                  lineHeight: titleLine,
+                },
+              ]}
+            >
+              Focus
+            </Text>
+            <Text
+              style={[
+                styles.heroSub,
+                {
+                  color: inkSoft,
+                  fontFamily: fontBody,
+                  fontSize: subSize,
+                  lineHeight: subSize * 1.45,
+                },
+              ]}
+            >
+              {narrow
+                ? 'A suite of tools to focus, stay present, and go deep.'
+                : 'A personal suite to help you focus, catch drift,\nand go deeper every day.'}
+            </Text>
+
+            {pulseApp ? (
+              <Animated.View
+                style={[
+                  styles.ctaWrap,
+                  cardMotion,
+                  { marginTop: short ? 10 : 14 },
+                  Platform.OS === 'web'
+                    ? ({
+                        boxShadow: `0 16px 36px ${brand}40`,
+                      } as object)
+                    : null,
+                ]}
+              >
+                <Pressable
+                  onPress={() => {
+                    if (pulseApp.route) {
+                      router.push(pulseApp.route as '/pomodoro');
+                    }
+                  }}
+                  style={({ pressed }) => [
+                    styles.ctaCard,
+                    {
+                      backgroundColor: brand,
+                      transform: [{ scale: pressed ? 0.99 : 1 }],
+                      shadowColor: brand,
+                      paddingVertical: ctaPadV,
+                      paddingHorizontal: tiny ? 16 : 22,
+                    },
+                  ]}
+                  accessibilityRole="link"
+                  accessibilityLabel="Open Pulse"
+                >
+                  <View
+                    style={[
+                      styles.ctaIcon,
+                      {
+                        width: iconSize + 18,
+                        height: iconSize + 18,
+                        borderRadius: (iconSize + 18) / 2,
+                      },
+                    ]}
+                  >
+                    <IconPulse color="#FFFFFF" size={iconSize} />
+                  </View>
+                  <View style={styles.ctaCopy}>
+                    <Text
+                      style={[
+                        styles.ctaTitle,
+                        { fontFamily: fontDisplay, fontSize: ctaTitleSize },
+                      ]}
+                    >
+                      {pulseApp.title}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.ctaMeta,
+                        { fontFamily: fontBody, fontSize: tiny ? 12 : 14 },
+                      ]}
+                    >
+                      {pulseApp.subtitle}
+                    </Text>
+                  </View>
+                  <IconChevron color="#FFFFFF" size={tiny ? 18 : 22} />
+                </Pressable>
+              </Animated.View>
+            ) : null}
+
+            {pulseApp ? (
+              <Pressable
+                onPress={() => toggleStory('pulse')}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: pulseOpen }}
+                accessibilityLabel={
+                  pulseOpen
+                    ? 'Hide Pulse story'
+                    : 'Why a tomato taught the world to focus'
+                }
+                style={({ pressed }) => [
+                  styles.discloseBtn,
+                  {
+                    borderColor: c.border,
+                    backgroundColor: isLight
+                      ? 'rgba(255,255,255,0.7)'
+                      : 'rgba(34,46,60,0.7)',
+                    opacity: pressed ? 0.88 : 1,
+                    marginTop: short ? 12 : 16,
+                  },
+                ]}
+              >
+                <Text
                   style={[
-                    styles.featureCol,
-                    narrow && styles.featureColGrid,
-                    !narrow && i < FEATURES.length - 1 && styles.featureDivider,
-                    { borderColor: c.border },
+                    styles.discloseLabel,
+                    {
+                      color: ink,
+                      fontFamily: fontBody,
+                      fontSize: tiny ? 12 : 13,
+                    },
                   ]}
                 >
-                  <FeatureIcon
-                    color={brand}
-                    size={featureIconSize}
-                    style={styles.featureIcon}
-                  />
-                  <Text
+                  {pulseOpen
+                    ? 'Hide the tomato story'
+                    : 'Why a tomato taught the world to focus'}
+                </Text>
+                <Feather
+                  name={pulseOpen ? 'chevron-up' : 'chevron-down'}
+                  size={15}
+                  color={brand}
+                />
+              </Pressable>
+            ) : null}
+          </View>
+
+          {pulseApp && pulseOpen ? (
+            <View
+              style={[
+                styles.storyExpand,
+                {
+                  borderTopColor: c.border,
+                  backgroundColor: isLight
+                    ? 'rgba(255,255,255,0.55)'
+                    : 'rgba(34,46,60,0.45)',
+                },
+              ]}
+            >
+              <StoryBody
+                story={pulseApp.story}
+                brand={brand}
+                ink={ink}
+                inkSoft={inkSoft}
+                border={c.border}
+                tiny={tiny}
+                narrow={narrow}
+                showRhythm
+              />
+            </View>
+          ) : null}
+
+          <View
+            style={[
+              styles.nextWrap,
+              {
+                borderTopColor: c.border,
+                marginTop: pulseOpen ? 8 : 0,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.nextKicker,
+                {
+                  color: inkSoft,
+                  fontFamily: fontBody,
+                  fontSize: tiny ? 11 : 12,
+                },
+              ]}
+            >
+              Next in Focus
+            </Text>
+            <View style={styles.nextStack}>
+              {upcoming.map((app) => {
+                const Icon = APP_ICONS[app.id];
+                const open = openStory === app.id;
+                return (
+                  <View
+                    key={app.id}
                     style={[
-                      styles.featureTitle,
+                      styles.nextCard,
                       {
-                        color: ink,
-                        fontFamily: fontBody,
-                        fontSize: tiny ? 13 : 15,
+                        backgroundColor: isLight
+                          ? 'rgba(255,255,255,0.72)'
+                          : 'rgba(34,46,60,0.72)',
+                        borderColor: open ? brand : c.border,
                       },
                     ]}
                   >
-                    {f.title}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.featureBody,
-                      {
-                        color: inkSoft,
-                        fontFamily: fontBody,
-                        fontSize: tiny ? 11 : 13,
-                        lineHeight: tiny ? 15 : 18,
-                      },
-                    ]}
-                    numberOfLines={narrow ? 2 : 3}
-                  >
-                    {f.body}
-                  </Text>
-                </View>
-              );
-            })}
+                    <Pressable
+                      onPress={() => toggleStory(app.id)}
+                      accessibilityRole="button"
+                      accessibilityState={{ expanded: open }}
+                      accessibilityLabel={`${app.title}. ${app.subtitle}. ${
+                        open ? 'Hide' : 'Show'
+                      } description`}
+                      style={({ pressed }) => [
+                        styles.nextHeadBtn,
+                        { opacity: pressed ? 0.88 : 1 },
+                      ]}
+                    >
+                      <Icon color={brand} size={tiny ? 17 : 19} />
+                      <View style={styles.nextHeadCopy}>
+                        <View style={styles.nextTitleRow}>
+                          <Text
+                            style={[
+                              styles.nextTitle,
+                              {
+                                color: ink,
+                                fontFamily: fontDisplay,
+                                fontSize: tiny ? 15 : 17,
+                              },
+                            ]}
+                          >
+                            {app.title}
+                          </Text>
+                          <View
+                            style={[
+                              styles.soonPill,
+                              {
+                                backgroundColor: isLight
+                                  ? `${brand}18`
+                                  : 'rgba(255,255,255,0.1)',
+                              },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.soonText,
+                                {
+                                  color: brand,
+                                  fontFamily: fontBody,
+                                  fontSize: 10,
+                                },
+                              ]}
+                            >
+                              Soon
+                            </Text>
+                          </View>
+                        </View>
+                        <Text
+                          style={[
+                            styles.nextBody,
+                            {
+                              color: inkSoft,
+                              fontFamily: fontBody,
+                              fontSize: tiny ? 12 : 13,
+                              lineHeight: 17,
+                            },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {app.subtitle}
+                        </Text>
+                      </View>
+                      <Feather
+                        name={open ? 'chevron-up' : 'chevron-down'}
+                        size={17}
+                        color={inkSoft}
+                      />
+                    </Pressable>
+
+                    {open ? (
+                      <View
+                        style={[
+                          styles.nextStory,
+                          { borderTopColor: c.border },
+                        ]}
+                      >
+                        <StoryBody
+                          story={app.story}
+                          brand={brand}
+                          ink={ink}
+                          inkSoft={inkSoft}
+                          border={c.border}
+                          tiny={tiny}
+                          narrow={narrow}
+                        />
+                      </View>
+                    ) : null}
+                  </View>
+                );
+              })}
+            </View>
           </View>
         </View>
-      </View>
+      </ScrollView>
     </ImageBackground>
   );
 }
@@ -332,18 +750,19 @@ const styles = StyleSheet.create({
   page: {
     flex: 1,
     width: '100%',
-    overflow: 'hidden',
   },
   bgImage: {
     width: '100%',
     height: '100%',
   },
-  root: {
-    flex: 1,
+  scroll: { flex: 1 },
+  scrollContent: {
+    flexGrow: 1,
+  },
+  fold: {
     maxWidth: 1040,
     width: '100%',
     alignSelf: 'center',
-    justifyContent: 'space-between',
   },
   topBar: {
     flexDirection: 'row',
@@ -372,16 +791,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   hero: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
     zIndex: 2,
-    minHeight: 0,
+    paddingVertical: 12,
+  },
+  heroGrow: {
+    flexGrow: 1,
   },
   heroTitle: {
     fontWeight: '700',
-    letterSpacing: -2.8,
+    letterSpacing: -2.6,
     textAlign: 'center',
   },
   heroSub: {
@@ -392,17 +813,17 @@ const styles = StyleSheet.create({
   },
   ctaWrap: {
     width: '100%',
-    maxWidth: 540,
-    shadowOpacity: 0.28,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 14 },
-    elevation: 12,
+    maxWidth: 520,
+    shadowOpacity: 0.26,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 11,
   },
   ctaCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    borderRadius: 22,
+    borderRadius: 20,
   },
   ctaIcon: {
     backgroundColor: 'rgba(255,255,255,0.2)',
@@ -413,51 +834,171 @@ const styles = StyleSheet.create({
   ctaTitle: {
     color: '#FFFFFF',
     fontWeight: '700',
-    letterSpacing: -0.6,
+    letterSpacing: -0.5,
   },
   ctaMeta: {
     color: 'rgba(255,255,255,0.9)',
     fontWeight: '500',
-    letterSpacing: 0.2,
   },
-  featuresWrap: {
+  discloseBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  discloseLabel: {
+    fontWeight: '600',
+  },
+  storyExpand: {
+    marginTop: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderRadius: 16,
+    paddingVertical: 18,
+    paddingHorizontal: 16,
+  },
+  storyKicker: {
+    fontWeight: '700',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    marginBottom: 8,
+  },
+  storyTitle: {
+    fontWeight: '700',
+    letterSpacing: -0.9,
+    marginBottom: 10,
+  },
+  storyLead: {
+    fontWeight: '500',
+  },
+  rhythmBlock: {
+    marginTop: 22,
+    gap: 12,
+  },
+  rhythmLabel: {
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  rhythmRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    gap: 4,
+  },
+  rhythmLink: {
+    width: 12,
+    height: 2,
+    borderRadius: 1,
+    marginBottom: 16,
+  },
+  beat: {
+    alignItems: 'center',
+    gap: 3,
+    minWidth: 46,
+  },
+  beatOrb: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  beatNum: {
+    fontWeight: '700',
+    letterSpacing: -0.4,
+  },
+  beatHint: {
+    fontWeight: '600',
+    textTransform: 'lowercase',
+  },
+  rhythmCaption: {
+    textAlign: 'center',
+    fontWeight: '500',
+    maxWidth: 400,
+    alignSelf: 'center',
+  },
+  whyBlock: {
+    marginTop: 20,
+  },
+  whyRow: {
+    flexDirection: 'row',
+    gap: 14,
+    paddingVertical: 12,
+  },
+  whyMark: {
+    fontWeight: '700',
+    letterSpacing: -0.4,
+    minWidth: 30,
+  },
+  whyCopy: {
+    flex: 1,
+    gap: 3,
+  },
+  whyItemTitle: {
+    fontWeight: '700',
+  },
+  whyItemBody: {
+    fontWeight: '500',
+  },
+  nextWrap: {
     zIndex: 2,
     borderTopWidth: StyleSheet.hairlineWidth,
     flexShrink: 0,
+    gap: 10,
+    paddingTop: 14,
+    paddingBottom: 18,
   },
-  features: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
+  nextKicker: {
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
   },
-  featuresGrid: {
+  nextStack: {
+    gap: 10,
+  },
+  nextCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  nextHeadBtn: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    alignItems: 'center',
     gap: 12,
-  },
-  featureCol: {
-    flex: 1,
-    gap: 5,
+    paddingVertical: 12,
     paddingHorizontal: 14,
+  },
+  nextHeadCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 3,
+  },
+  nextTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  nextTitle: {
+    fontWeight: '700',
+    letterSpacing: -0.3,
+    flexShrink: 1,
+  },
+  soonPill: {
+    borderRadius: 999,
+    paddingHorizontal: 7,
     paddingVertical: 2,
   },
-  featureColGrid: {
-    flexGrow: 0,
-    flexShrink: 0,
-    flexBasis: '47%',
-    width: '47%',
-    paddingHorizontal: 4,
-  },
-  featureDivider: {
-    borderRightWidth: StyleSheet.hairlineWidth,
-  },
-  featureIcon: {
-    marginBottom: 2,
-  },
-  featureTitle: {
+  soonText: {
     fontWeight: '700',
+    letterSpacing: 0.2,
   },
-  featureBody: {
+  nextBody: {
     fontWeight: '500',
+  },
+  nextStory: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 14,
+    paddingBottom: 14,
+    paddingTop: 12,
   },
 });

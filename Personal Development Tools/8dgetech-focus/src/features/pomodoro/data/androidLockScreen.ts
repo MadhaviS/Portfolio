@@ -36,6 +36,7 @@ let serviceActive = false;
 let endsAtMs: number | null = null;
 let pausedRemaining = 0;
 let currentPhase: PomodoroPhase = 'focus';
+let currentTaskTitle = 'Pulse';
 let sessionMode: 'running' | 'paused' | 'idle' = 'idle';
 let permissionAsked = false;
 let overlayPrompted = false;
@@ -139,8 +140,8 @@ function chronoOptions(
 ): StickyOptions {
   return {
     channelId: CHANNEL_ID,
-    channelName: 'Focus timer',
-    channelDescription: 'Ongoing Pomodoro countdown',
+    channelName: 'Pulse timer',
+    channelDescription: 'Ongoing Pulse countdown',
     notificationId: NOTIFICATION_ID,
     title,
     text,
@@ -153,8 +154,8 @@ function chronoOptions(
     closeOnAction: false,
     repostOnDismiss: true,
     foregroundServiceBehavior: 'immediate',
-    // Compact shade row — not MediaStyle / Spotify-like lock controls.
-    systemStyle: false,
+    // Compact shade row with system chronometer (Clock-style countdown).
+    systemStyle: true,
     requestPromotedOngoing: false,
     category: 'progress',
     shortCriticalText: chrono.chipText,
@@ -206,17 +207,20 @@ async function hideService() {
 async function renderRunning() {
   const theme = PHASE_THEME[currentPhase];
   const endsAt = endsAtMs ?? Date.now() + remainingSeconds() * 1000;
-  const left = formatTimer(remainingSeconds());
+  // Title/text stay static; Android chronometer (when) is the live countdown.
   await present(
     chronoOptions(
-      left,
+      currentTaskTitle,
       theme.label,
       theme.bg,
-      [{ id: 'open', title: 'Open', payload: '/pomodoro' }],
+      [
+        { id: 'pause', title: 'Pause', payload: '/pomodoro' },
+        { id: 'open', title: 'Open', payload: '/pomodoro' },
+      ],
       {
         endsAt,
         countdown: true,
-        chipText: left,
+        chipText: formatTimer(remainingSeconds()),
       },
     ),
   );
@@ -228,9 +232,12 @@ async function renderPaused() {
   await present(
     chronoOptions(
       left,
-      `${theme.label} · Paused`,
+      `${currentTaskTitle} · Paused`,
       theme.bg,
-      [{ id: 'open', title: 'Open', payload: '/pomodoro' }],
+      [
+        { id: 'resume', title: 'Resume', payload: '/pomodoro' },
+        { id: 'open', title: 'Open', payload: '/pomodoro' },
+      ],
       {
         countdown: false,
         chipText: left,
@@ -290,11 +297,13 @@ export const androidLockScreen = {
     phase: PomodoroPhase;
     endsAt: number;
     remaining: number;
+    taskTitle?: string | null;
   }) {
     if (!enabled) return;
     wireAppState();
     ensureOverlayPermission();
     currentPhase = input.phase;
+    currentTaskTitle = input.taskTitle?.trim() || PHASE_THEME[input.phase].label;
     endsAtMs = input.endsAt;
     pausedRemaining = input.remaining;
     sessionMode = 'running';
@@ -304,11 +313,13 @@ export const androidLockScreen = {
   async paused(input: {
     phase: PomodoroPhase;
     remaining: number;
+    taskTitle?: string | null;
   }) {
     if (!enabled) return;
     wireAppState();
     ensureOverlayPermission();
     currentPhase = input.phase;
+    currentTaskTitle = input.taskTitle?.trim() || PHASE_THEME[input.phase].label;
     endsAtMs = null;
     pausedRemaining = input.remaining;
     sessionMode = 'paused';

@@ -23,17 +23,16 @@ import Feather from '@expo/vector-icons/Feather';
 import { PHASE_THEME, formatTimer, type PomodoroPhase } from '../domain/types';
 import { fontBody } from '../../../core/theme/fonts';
 import { usePomodoro } from './PomodoroProvider';
-import { subscribeOpenFromPip } from './timerPip';
+import { PhaseIconGlyph } from './PhaseIcon';
+import { subscribeOpenFromPip, isTimerPipOpen } from './timerPip';
 
-const BUBBLE = Platform.OS === 'web' ? 168 : 156;
+/** iOS Clock Live Activity–style chip */
+const CARD_W = Platform.OS === 'web' ? 304 : 292;
+const CARD_H = 72;
 const MARGIN = 12;
 const CLOSE_SIZE = 64;
-
-const PHASE_SHORT: Record<PomodoroPhase, string> = {
-  focus: 'FOCUS',
-  shortBreak: 'SHORT BREAK',
-  longBreak: 'LONG BREAK',
-};
+const CARD_BG = '#1C1C1E';
+const BTN_MUTED = '#3A3A3C';
 
 type BubblePos = { x: number; y: number };
 let savedPos: BubblePos | null = null;
@@ -45,16 +44,15 @@ function defaultPos(
   bottomInset: number,
 ): BubblePos {
   return {
-    x: Math.max(MARGIN, width - BUBBLE - MARGIN),
-    y: Math.max(topInset + MARGIN, height - BUBBLE - bottomInset - MARGIN),
+    x: Math.max(MARGIN, width - CARD_W - MARGIN),
+    y: Math.max(topInset + MARGIN, height - CARD_H - bottomInset - MARGIN),
   };
 }
 
 function softBreath() {
-  // Inward pulse only — scaling above 1 clips the round bubble.
   return withRepeat(
     withSequence(
-      withTiming(0.96, {
+      withTiming(0.985, {
         duration: 3200,
         easing: Easing.inOut(Easing.sin),
       }),
@@ -84,13 +82,18 @@ export function useShowTimerBubble() {
     usePomodoro();
   const segments = useSegments();
   const onPomodoro = segments[0] === 'pomodoro';
-  return (
-    !overlayDismissed &&
-    !pipOpen &&
-    !onPomodoro &&
-    segments[0] !== 'sign-in' &&
-    (running || isPartial || minimized)
-  );
+  const onSignIn = segments[0] === 'sign-in';
+
+  if (overlayDismissed || onSignIn) return false;
+
+  // Never stack the in-app chip on top of Document/Video PiP.
+  if (pipOpen || isTimerPipOpen()) return false;
+
+  // After minimize when system PiP is unavailable — single in-app chip.
+  if (minimized) return true;
+
+  // Timer running while browsing other screens (home, admin, …)
+  return !onPomodoro && (running || isPartial);
 }
 
 /** Always-mounted: Picture-in-Picture / bubble open → full pomodoro screen. */
@@ -126,6 +129,7 @@ export function TimerBubble() {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const heading = headingFor(phase, activeTask?.title);
+  const accent = PHASE_THEME[phase].accent;
 
   const startPos =
     savedPos ?? defaultPos(width, height, insets.top, insets.bottom);
@@ -139,9 +143,9 @@ export function TimerBubble() {
     const next =
       savedPos ?? defaultPos(width, height, insets.top, insets.bottom);
     const minX = MARGIN;
-    const maxX = Math.max(minX, width - BUBBLE - MARGIN);
+    const maxX = Math.max(minX, width - CARD_W - MARGIN);
     const minY = insets.top + MARGIN;
-    const maxY = Math.max(minY, height - BUBBLE - insets.bottom - MARGIN);
+    const maxY = Math.max(minY, height - CARD_H - insets.bottom - MARGIN);
     x.value = Math.min(maxX, Math.max(minX, next.x));
     y.value = Math.min(maxY, Math.max(minY, next.y));
   }, [width, height, insets.top, insets.bottom, x, y]);
@@ -180,8 +184,8 @@ export function TimerBubble() {
       .onChange((e) => {
         x.value += e.changeX;
         y.value += e.changeY;
-        const cx = x.value + BUBBLE / 2;
-        const cy = y.value + BUBBLE / 2;
+        const cx = x.value + CARD_W / 2;
+        const cy = y.value + CARD_H / 2;
         const dist = Math.hypot(cx - closeCx, cy - closeCy);
         overClose.value = dist < CLOSE_SIZE + 8 ? 1 : 0;
       })
@@ -193,10 +197,10 @@ export function TimerBubble() {
           return;
         }
         const minX = MARGIN;
-        const maxX = Math.max(minX, width - BUBBLE - MARGIN);
+        const maxX = Math.max(minX, width - CARD_W - MARGIN);
         const minY = insets.top + MARGIN;
-        const maxY = Math.max(minY, height - BUBBLE - insets.bottom - MARGIN);
-        const snapRight = x.value + BUBBLE / 2 > width / 2;
+        const maxY = Math.max(minY, height - CARD_H - insets.bottom - MARGIN);
+        const snapRight = x.value + CARD_W / 2 > width / 2;
         const nextX = snapRight ? maxX : minX;
         const nextY = Math.min(maxY, Math.max(minY, y.value));
         x.value = nextX;
@@ -224,7 +228,7 @@ export function TimerBubble() {
     transform: [
       { translateX: x.value },
       { translateY: y.value },
-      { scale: (overClose.value ? 0.92 : 1) * breath.value },
+      { scale: (overClose.value ? 0.96 : 1) * breath.value },
     ],
     opacity: overClose.value ? 0.82 : 1,
   }));
@@ -233,8 +237,6 @@ export function TimerBubble() {
     opacity: dragging.value,
     transform: [{ scale: overClose.value ? 1.12 : 1 }],
   }));
-
-  const theme = PHASE_THEME[phase];
 
   if (!visible) return null;
 
@@ -248,22 +250,16 @@ export function TimerBubble() {
           closeZoneStyle,
         ]}
       >
-        <View style={[styles.closeZone, { backgroundColor: theme.bg }]}>
+        <View style={styles.closeZone}>
           <Text style={styles.closeMark}>×</Text>
         </View>
       </Animated.View>
 
       <Animated.View
-        accessibilityLabel={`${heading}. ${PHASE_SHORT[phase]} ${formatTimer(remaining)}. Drag to move.`}
+        accessibilityLabel={`${heading}. ${formatTimer(remaining)}. Drag to move.`}
         style={[
           styles.card,
           animatedStyle,
-          {
-            backgroundColor: theme.bg,
-            borderColor: running
-              ? 'rgba(255,255,255,0.45)'
-              : 'rgba(255,255,255,0.28)',
-          },
           Platform.OS === 'web'
             ? ({
                 position: 'fixed',
@@ -273,22 +269,23 @@ export function TimerBubble() {
         ]}
       >
         <GestureDetector gesture={gesture}>
-          <View
+          <Pressable
+            onPress={openTimer}
             style={[
-              styles.dragArea,
+              styles.main,
               Platform.OS === 'web' ? ({ cursor: 'grab' } as object) : null,
             ]}
           >
-            <Text style={styles.task} numberOfLines={2}>
-              {heading}
-            </Text>
-            <Text style={styles.phase} numberOfLines={1}>
-              {PHASE_SHORT[phase]}
-            </Text>
-            <Text style={styles.time} numberOfLines={1}>
-              {formatTimer(remaining)}
-            </Text>
-          </View>
+            <PhaseIconGlyph phase={phase} color={accent} size={26} />
+            <View style={styles.copy}>
+              <Text style={styles.time} numberOfLines={1}>
+                {formatTimer(remaining)}
+              </Text>
+              <Text style={styles.task} numberOfLines={1}>
+                {heading}
+              </Text>
+            </View>
+          </Pressable>
         </GestureDetector>
 
         <View style={styles.actions}>
@@ -298,27 +295,32 @@ export function TimerBubble() {
             onPress={toggleRun}
             style={({ pressed }) => [
               styles.iconBtn,
-              styles.primaryBtn,
+              { backgroundColor: accent },
               pressed && styles.pressed,
             ]}
           >
             <Feather
               name={running ? 'pause' : 'play'}
-              size={14}
-              color="#1A1A1A"
+              size={16}
+              color="#FFFFFF"
+              style={running ? undefined : { marginLeft: 2 }}
             />
           </Pressable>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Open timer"
-            onPress={openTimer}
+            accessibilityLabel="Dismiss"
+            hitSlop={8}
+            onPress={() => {
+              dismissOverlay();
+            }}
             style={({ pressed }) => [
               styles.iconBtn,
-              styles.openBtn,
+              styles.dismissBtn,
               pressed && styles.pressed,
+              Platform.OS === 'web' ? ({ cursor: 'pointer' } as object) : null,
             ]}
           >
-            <Feather name="maximize-2" size={13} color="#FFFFFF" />
+            <Feather name="x" size={16} color="#FFFFFF" />
           </Pressable>
         </View>
       </Animated.View>
@@ -346,8 +348,9 @@ const styles = StyleSheet.create({
     borderRadius: CLOSE_SIZE / 2,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: CARD_BG,
     borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.7)',
+    borderColor: 'rgba(255,255,255,0.55)',
   },
   closeMark: {
     color: '#FFFFFF',
@@ -359,77 +362,65 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     left: 0,
-    width: BUBBLE,
-    height: BUBBLE,
-    borderRadius: BUBBLE / 2,
-    borderWidth: 2,
-    paddingHorizontal: 14,
-    paddingTop: 18,
-    paddingBottom: 14,
+    width: CARD_W,
+    height: CARD_H,
+    borderRadius: CARD_H / 2,
+    backgroundColor: CARD_BG,
+    paddingLeft: 16,
+    paddingRight: 10,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     zIndex: 9999,
     elevation: 14,
     shadowColor: '#000',
-    shadowOpacity: 0.28,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
   },
-  dragArea: {
+  main: {
+    flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
+    minWidth: 0,
+    paddingRight: 8,
+    gap: 10,
+  },
+  copy: {
+    flex: 1,
+    minWidth: 0,
     justifyContent: 'center',
-    width: '100%',
-    gap: 2,
-  },
-  task: {
-    fontFamily: fontBody,
-    color: 'rgba(255,255,255,0.96)',
-    fontSize: 11,
-    fontWeight: '700',
-    textAlign: 'center',
-    lineHeight: 14,
-    paddingHorizontal: 4,
-  },
-  phase: {
-    fontFamily: fontBody,
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-    textAlign: 'center',
   },
   time: {
     fontFamily: fontBody,
     color: '#FFFFFF',
-    fontSize: 26,
-    fontWeight: '800',
+    fontSize: 22,
+    fontWeight: '700',
     fontVariant: ['tabular-nums'],
-    letterSpacing: -0.8,
-    lineHeight: 30,
-    textAlign: 'center',
-    marginVertical: 2,
+    letterSpacing: -0.4,
+    lineHeight: 26,
+  },
+  task: {
+    fontFamily: fontBody,
+    color: 'rgba(255,255,255,0.78)',
+    fontSize: 13,
+    fontWeight: '500',
+    lineHeight: 16,
+    marginTop: 1,
   },
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     gap: 8,
-    marginTop: 4,
   },
   iconBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  primaryBtn: {
-    backgroundColor: 'rgba(255,255,255,0.94)',
-  },
-  openBtn: {
-    backgroundColor: 'rgba(255,255,255,0.16)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.28)',
+  dismissBtn: {
+    backgroundColor: BTN_MUTED,
   },
   pressed: {
     opacity: 0.82,

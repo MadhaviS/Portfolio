@@ -98,7 +98,7 @@ export function AddTaskModal({
               onSubmitEditing={save}
             />
 
-            <Text style={[styles.estLabel, { color: c.onSurface }]}>Est Pomodoros</Text>
+            <Text style={[styles.estLabel, { color: c.onSurface }]}>Est. focus blocks</Text>
             <View style={styles.estRow}>
               <View style={[styles.estBox, { backgroundColor: c.backgroundAlt }]}>
                 <Text style={[styles.estValue, { color: c.onSurface }]}>{estimate}</Text>

@@ -34,6 +34,21 @@ export function IconTomatoClock({ color = '#FFFFFF', size = 36, style }: IconPro
   return <Feather name="watch" size={size} color={color} style={style as TextStyle} />;
 }
 
+/** Pulse — Focus suite timer. */
+export function IconPulse({ color = '#FFFFFF', size = 36, style }: IconProps) {
+  return <Feather name="watch" size={size} color={color} style={style as TextStyle} />;
+}
+
+/** Drift — attention / distraction guard (coming soon). */
+export function IconDrift({ color = '#397097', size = 28, style }: IconProps) {
+  return <Feather name="wind" size={size} color={color} style={style as TextStyle} />;
+}
+
+/** Depth — deep-work blocks (coming soon). */
+export function IconDepth({ color = '#397097', size = 28, style }: IconProps) {
+  return <Feather name="layers" size={size} color={color} style={style as TextStyle} />;
+}
+
 export function IconSun({ color = '#1A1A1D', size = 18, style }: IconProps) {
   return <Feather name="sun" size={size} color={color} style={style as TextStyle} />;
 }

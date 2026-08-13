@@ -55,7 +55,7 @@ async function ensurePermissions(): Promise<NotificationsModule | null> {
   try {
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
-        name: 'Focus session alerts',
+        name: 'Pulse session alerts',
         importance: Notifications.AndroidImportance.HIGH,
         lockscreenVisibility:
           Notifications.AndroidNotificationVisibility.PUBLIC,
@@ -78,8 +78,9 @@ function activityState(
   progressBar: { date: number } | { progress: number },
 ) {
   return {
-    title: PHASE_THEME[phase].label,
-    subtitle,
+    // Title is the task; system digital timer (progressBar.date) is the live countdown.
+    title: subtitle,
+    subtitle: PHASE_THEME[phase].label,
     progressBar,
     imageName: 'focus',
     dynamicIslandImageName: 'focus',
@@ -96,6 +97,7 @@ function activityConfig(phase: PomodoroPhase) {
     progressViewLabelColor: '#FFFFFF',
     deepLinkUrl: '/pomodoro',
     timerType: 'digital' as const,
+    // Digital countdown on the trailing edge — Clock-style.
     imagePosition: 'left' as const,
   };
 }
@@ -176,15 +178,18 @@ export const lockScreenTimer = {
     phase: PomodoroPhase;
     endsAt: number;
     remaining: number;
+    taskTitle?: string | null;
   }) {
     if (!lockScreenNative) return;
     const label = PHASE_THEME[input.phase].label;
-    const subtitle = `${formatTimer(input.remaining)} remaining`;
+    const task =
+      input.taskTitle?.trim() || label;
 
     if (Platform.OS === 'ios') {
-      startOrUpdateLiveActivity(input.phase, subtitle, { date: input.endsAt });
+      // Live countdown comes from progressBar.date — do not freeze MM:SS in text.
+      startOrUpdateLiveActivity(input.phase, task, { date: input.endsAt });
     } else if (Platform.OS === 'android') {
-      await androidLockScreen.running(input);
+      await androidLockScreen.running({ ...input, taskTitle: task });
     }
 
     const Notifications = await ensurePermissions();
@@ -196,16 +201,22 @@ export const lockScreenTimer = {
     phase: PomodoroPhase;
     remaining: number;
     total: number;
+    taskTitle?: string | null;
   }) {
     if (!lockScreenNative) return;
-    const subtitle = `Paused · ${formatTimer(input.remaining)}`;
+    const label = PHASE_THEME[input.phase].label;
+    const task = input.taskTitle?.trim() || label;
     const progress =
       input.total <= 0 ? 0 : 1 - Math.min(1, input.remaining / input.total);
 
     if (Platform.OS === 'ios') {
-      startOrUpdateLiveActivity(input.phase, subtitle, { progress });
+      startOrUpdateLiveActivity(
+        input.phase,
+        `${task} · ${formatTimer(input.remaining)}`,
+        { progress },
+      );
     } else if (Platform.OS === 'android') {
-      await androidLockScreen.paused(input);
+      await androidLockScreen.paused({ ...input, taskTitle: task });
     }
 
     const Notifications = await ensurePermissions();

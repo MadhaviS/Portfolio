@@ -2,7 +2,7 @@ export type ThemeMode = 'light' | 'dark' | 'system';
 
 /**
  * App brand: steel blue. Phase washes (focus / short / long) live only on the
- * Pomodoro ritual screen — everywhere else uses this single palette.
+ * Pulse ritual screen — everywhere else uses this single palette.
  */
 export const lightTheme = {
   mode: 'light' as const,

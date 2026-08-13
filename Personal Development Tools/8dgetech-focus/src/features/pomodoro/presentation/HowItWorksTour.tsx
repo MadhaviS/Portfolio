@@ -25,12 +25,12 @@ const DEFAULT_STEPS: TourStep[] = [
     body: 'Write what you want to finish today in the task list. Tap a task to make it the one you are working on.',
   },
   {
-    title: 'Estimate pomodoros',
-    body: 'Each pomodoro is one focus block (default 25 minutes). Use + / − on a task to set how many blocks you expect.',
+    title: 'Estimate focus blocks',
+    body: 'Each Pulse block is one focus session (default 25 minutes). Use + / − on a task to set how many blocks you expect.',
   },
   {
     title: 'Start and focus',
-    body: 'Choose Pomodoro, press START, and stay with the task until the timer ends. Pause anytime if you need to.',
+    body: 'Choose Focus, press START, and stay with the task until the timer ends. Pause anytime if you need to.',
   },
   {
     title: 'Break, then repeat',

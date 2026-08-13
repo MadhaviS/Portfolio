@@ -105,7 +105,7 @@ export const PHASE_THEME: Record<
     bg: '#397097',
     panel: 'rgba(255,255,255,0.16)',
     accent: '#4A84A8',
-    label: 'Pomodoro',
+    label: 'Focus',
     pageLight: '#4A6F8C',
     panelLight: 'rgba(245,249,252,0.82)',
     pageDark: '#161D28',

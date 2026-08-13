@@ -350,7 +350,7 @@ function DayAgenda({ log }: { log: DayLog }) {
         time: sessionStartLabel(t.createdAt),
         duration: '—',
         title: t.title,
-        meta: `Task created · ${t.completedPomodoros}/${t.estimatePomodoros} pomos`,
+        meta: `Task created · ${t.completedPomodoros}/${t.estimatePomodoros} blocks`,
       });
     }
 

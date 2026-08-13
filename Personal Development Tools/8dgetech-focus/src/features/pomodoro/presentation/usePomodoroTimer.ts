@@ -90,11 +90,19 @@ export function usePomodoroTimer() {
   const completedFocusRef = useRef(stats.focusCompletedToday);
   const finishingRef = useRef(false);
   const activeTaskRef = useRef(activeTaskId);
+  const tasksRef = useRef(tasks);
 
   phaseRef.current = phase;
   settingsRef.current = settings;
   completedFocusRef.current = stats.focusCompletedToday;
   activeTaskRef.current = activeTaskId;
+  tasksRef.current = tasks;
+
+  const lockTaskTitle = useCallback(() => {
+    const id = activeTaskRef.current;
+    if (!id) return null;
+    return tasksRef.current.find((t) => t.id === id)?.title ?? null;
+  }, []);
 
   const setDeadline = useCallback((value: number | null) => {
     endsAtRef.current = value;
@@ -140,6 +148,7 @@ export function usePomodoroTimer() {
             phase: live.phase,
             endsAt: live.endsAt!,
             remaining: left,
+            taskTitle: lockTaskTitle(),
           });
         } else {
           void lockScreenTimer.idle({ phase: live.phase, completed: false });
@@ -161,7 +170,7 @@ export function usePomodoroTimer() {
     setPhase('focus');
     setRemaining(durationForPhase('focus', nextSettings));
     void lockScreenTimer.idle({ phase: 'focus', completed: false });
-  }, [clearTick, refreshInsight, setDeadline, userId]);
+  }, [clearTick, lockTaskTitle, refreshInsight, setDeadline, userId]);
 
   useEffect(() => {
     pomodoroRepository.switchUser(userId);
@@ -223,9 +232,10 @@ export function usePomodoroTimer() {
         phase: forPhase,
         endsAt,
         remaining: seconds,
+        taskTitle: lockTaskTitle(),
       });
     },
-    [refreshInsight, setDeadline],
+    [lockTaskTitle, refreshInsight, setDeadline],
   );
 
   const finishPhase = useCallback(() => {
@@ -278,13 +288,14 @@ export function usePomodoroTimer() {
         phase,
         endsAt,
         remaining,
+        taskTitle: lockTaskTitle(),
       });
       return;
     }
     const seconds =
       remaining > 0 ? remaining : durationForPhase(phase, settings);
     beginSession(phase, seconds);
-  }, [beginSession, phase, remaining, running, setDeadline, settings]);
+  }, [beginSession, lockTaskTitle, phase, remaining, running, setDeadline, settings]);
 
   const pause = useCallback(() => {
     const left = endsAtRef.current
@@ -298,8 +309,9 @@ export function usePomodoroTimer() {
       phase: phaseRef.current,
       remaining: left,
       total: durationForPhase(phaseRef.current, settingsRef.current),
+      taskTitle: lockTaskTitle(),
     });
-  }, [remaining, setDeadline]);
+  }, [lockTaskTitle, remaining, setDeadline]);
 
   const selectPhase = useCallback(
     (next: PomodoroPhase) => {

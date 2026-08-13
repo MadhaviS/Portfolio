@@ -143,7 +143,7 @@ export function PomodoroScreen() {
             accessibilityLabel="Back to home"
           >
             <Text style={[styles.brand, { color: ink }]}>
-              8dgeTech
+              Pulse
             </Text>
           </Pressable>
           <View style={styles.topActions}>
@@ -682,7 +682,7 @@ function SettingsModal({
             </Text>
             <View style={styles.timeRow}>
               <MinuteInput
-                label="Pomodoro"
+                label="Focus"
                 value={settings.focusMinutes}
                 disabled={disabled}
                 min={1}
@@ -716,7 +716,7 @@ function SettingsModal({
               }
             />
             <ToggleRow
-              label="Auto Start Pomodoros"
+              label="Auto Start Focus"
               value={settings.autoStartPomodoros}
               disabled={disabled}
               onToggle={() =>
@@ -871,7 +871,7 @@ function LongBreakIntervalField({
           Long Break interval
         </Text>
         <Text style={[styles.intervalHint, { color: c.onSurfaceMuted }]}>
-          Pomodoros until a long break
+          Focus blocks until a long break
         </Text>
       </View>
       <TextInput

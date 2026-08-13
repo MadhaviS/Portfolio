@@ -1,7 +1,7 @@
 import React from 'react';
 import { HomeScreen } from '../src/features/home/HomeScreen';
 
-/** Toolkit landing — pick a tool (Pomodoro, …). */
+/** Focus suite landing — Pulse ships; Drift & Depth are next. */
 export default function Index() {
   return <HomeScreen />;
 }
