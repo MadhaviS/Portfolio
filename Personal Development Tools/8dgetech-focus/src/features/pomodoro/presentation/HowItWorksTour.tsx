@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { useTheme } from '../../../core/theme/ThemeProvider';
+import { fontBody } from '../../../core/theme/fonts';
 
 export type TourStep = {
   title: string;
@@ -214,12 +215,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   kicker: {
+    fontFamily: fontBody,
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 0.4,
     textTransform: 'uppercase',
   },
   skip: {
+    fontFamily: fontBody,
     fontSize: 14,
     fontWeight: '600',
   },
@@ -234,12 +237,14 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   title: {
+    fontFamily: fontBody,
     fontSize: 24,
     fontWeight: '700',
     letterSpacing: -0.3,
     marginTop: 4,
   },
   body: {
+    fontFamily: fontBody,
     fontSize: 15,
     lineHeight: 23,
     fontWeight: '500',
@@ -258,6 +263,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   secondaryLabel: {
+    fontFamily: fontBody,
     fontSize: 14,
     fontWeight: '700',
   },
@@ -268,6 +274,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   primaryLabel: {
+    fontFamily: fontBody,
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '700',

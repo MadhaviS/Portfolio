@@ -21,12 +21,11 @@ import { useRouter, useSegments } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Feather from '@expo/vector-icons/Feather';
 import { PHASE_THEME, formatTimer, type PomodoroPhase } from '../domain/types';
+import { fontBody } from '../../../core/theme/fonts';
 import { usePomodoro } from './PomodoroProvider';
 import { subscribeOpenFromPip } from './timerPip';
-import { PhaseIconGlyph } from './PhaseIcon';
 
-const CARD_W = Platform.OS === 'web' ? 210 : 188;
-const CARD_H = Platform.OS === 'web' ? 108 : 100;
+const BUBBLE = Platform.OS === 'web' ? 168 : 156;
 const MARGIN = 12;
 const CLOSE_SIZE = 64;
 
@@ -46,16 +45,16 @@ function defaultPos(
   bottomInset: number,
 ): BubblePos {
   return {
-    x: Math.max(MARGIN, width - CARD_W - MARGIN),
-    y: Math.max(topInset + MARGIN, height - CARD_H - bottomInset - MARGIN),
+    x: Math.max(MARGIN, width - BUBBLE - MARGIN),
+    y: Math.max(topInset + MARGIN, height - BUBBLE - bottomInset - MARGIN),
   };
 }
 
-/** Soft breath scale for the floating bubble while running. */
 function softBreath() {
+  // Inward pulse only — scaling above 1 clips the round bubble.
   return withRepeat(
     withSequence(
-      withTiming(1.025, {
+      withTiming(0.96, {
         duration: 3200,
         easing: Easing.inOut(Easing.sin),
       }),
@@ -69,12 +68,22 @@ function softBreath() {
   );
 }
 
+function headingFor(
+  phase: PomodoroPhase,
+  taskTitle: string | null | undefined,
+): string {
+  const title = taskTitle?.trim();
+  if (title) return title;
+  if (phase === 'shortBreak') return 'Short break';
+  if (phase === 'longBreak') return 'Long break';
+  return 'Focus';
+}
+
 export function useShowTimerBubble() {
   const { running, isPartial, minimized, overlayDismissed, pipOpen } =
     usePomodoro();
   const segments = useSegments();
   const onPomodoro = segments[0] === 'pomodoro';
-  // Stay visible on home until we actually reach /pomodoro (avoid flicker-hide)
   return (
     !overlayDismissed &&
     !pipOpen &&
@@ -92,7 +101,6 @@ export function PipNavigationBridge() {
   useEffect(
     () =>
       subscribeOpenFromPip(() => {
-        // Push first so the route change isn't lost if expand re-renders
         router.push('/pomodoro');
         expand();
       }),
@@ -107,6 +115,7 @@ export function TimerBubble() {
     remaining,
     phase,
     running,
+    activeTask,
     start,
     pause,
     expand,
@@ -116,6 +125,7 @@ export function TimerBubble() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
+  const heading = headingFor(phase, activeTask?.title);
 
   const startPos =
     savedPos ?? defaultPos(width, height, insets.top, insets.bottom);
@@ -129,9 +139,9 @@ export function TimerBubble() {
     const next =
       savedPos ?? defaultPos(width, height, insets.top, insets.bottom);
     const minX = MARGIN;
-    const maxX = Math.max(minX, width - CARD_W - MARGIN);
+    const maxX = Math.max(minX, width - BUBBLE - MARGIN);
     const minY = insets.top + MARGIN;
-    const maxY = Math.max(minY, height - CARD_H - insets.bottom - MARGIN);
+    const maxY = Math.max(minY, height - BUBBLE - insets.bottom - MARGIN);
     x.value = Math.min(maxX, Math.max(minX, next.x));
     y.value = Math.min(maxY, Math.max(minY, next.y));
   }, [width, height, insets.top, insets.bottom, x, y]);
@@ -170,8 +180,8 @@ export function TimerBubble() {
       .onChange((e) => {
         x.value += e.changeX;
         y.value += e.changeY;
-        const cx = x.value + CARD_W / 2;
-        const cy = y.value + CARD_H / 2;
+        const cx = x.value + BUBBLE / 2;
+        const cy = y.value + BUBBLE / 2;
         const dist = Math.hypot(cx - closeCx, cy - closeCy);
         overClose.value = dist < CLOSE_SIZE + 8 ? 1 : 0;
       })
@@ -183,10 +193,10 @@ export function TimerBubble() {
           return;
         }
         const minX = MARGIN;
-        const maxX = Math.max(minX, width - CARD_W - MARGIN);
+        const maxX = Math.max(minX, width - BUBBLE - MARGIN);
         const minY = insets.top + MARGIN;
-        const maxY = Math.max(minY, height - CARD_H - insets.bottom - MARGIN);
-        const snapRight = x.value + CARD_W / 2 > width / 2;
+        const maxY = Math.max(minY, height - BUBBLE - insets.bottom - MARGIN);
+        const snapRight = x.value + BUBBLE / 2 > width / 2;
         const nextX = snapRight ? maxX : minX;
         const nextY = Math.min(maxY, Math.max(minY, y.value));
         x.value = nextX;
@@ -244,7 +254,7 @@ export function TimerBubble() {
       </Animated.View>
 
       <Animated.View
-        accessibilityLabel={`${PHASE_SHORT[phase]} ${formatTimer(remaining)}. Drag to move.`}
+        accessibilityLabel={`${heading}. ${PHASE_SHORT[phase]} ${formatTimer(remaining)}. Drag to move.`}
         style={[
           styles.card,
           animatedStyle,
@@ -269,12 +279,12 @@ export function TimerBubble() {
               Platform.OS === 'web' ? ({ cursor: 'grab' } as object) : null,
             ]}
           >
-            <View style={styles.metaRow}>
-              <PhaseIconGlyph phase={phase} color="#FFFFFF" size={16} />
-              <Text style={styles.phase} numberOfLines={1}>
-                {PHASE_SHORT[phase]}
-              </Text>
-            </View>
+            <Text style={styles.task} numberOfLines={2}>
+              {heading}
+            </Text>
+            <Text style={styles.phase} numberOfLines={1}>
+              {PHASE_SHORT[phase]}
+            </Text>
             <Text style={styles.time} numberOfLines={1}>
               {formatTimer(remaining)}
             </Text>
@@ -294,7 +304,7 @@ export function TimerBubble() {
           >
             <Feather
               name={running ? 'pause' : 'play'}
-              size={16}
+              size={14}
               color="#1A1A1A"
             />
           </Pressable>
@@ -308,7 +318,7 @@ export function TimerBubble() {
               pressed && styles.pressed,
             ]}
           >
-            <Feather name="maximize-2" size={15} color="#FFFFFF" />
+            <Feather name="maximize-2" size={13} color="#FFFFFF" />
           </Pressable>
         </View>
       </Animated.View>
@@ -349,14 +359,15 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     left: 0,
-    width: CARD_W,
-    height: CARD_H,
-    borderRadius: 18,
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingTop: 10,
-    paddingBottom: 10,
-    justifyContent: 'space-between',
+    width: BUBBLE,
+    height: BUBBLE,
+    borderRadius: BUBBLE / 2,
+    borderWidth: 2,
+    paddingHorizontal: 14,
+    paddingTop: 18,
+    paddingBottom: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
     zIndex: 9999,
     elevation: 14,
     shadowColor: '#000',
@@ -365,39 +376,50 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
   },
   dragArea: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  metaRow: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginBottom: 2,
+    justifyContent: 'center',
+    width: '100%',
+    gap: 2,
+  },
+  task: {
+    fontFamily: fontBody,
+    color: 'rgba(255,255,255,0.96)',
+    fontSize: 11,
+    fontWeight: '700',
+    textAlign: 'center',
+    lineHeight: 14,
+    paddingHorizontal: 4,
   },
   phase: {
-    flex: 1,
-    color: 'rgba(255,255,255,0.92)',
-    fontSize: 11,
+    fontFamily: fontBody,
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 9,
     fontWeight: '800',
     letterSpacing: 0.8,
+    textAlign: 'center',
   },
   time: {
+    fontFamily: fontBody,
     color: '#FFFFFF',
-    fontSize: 30,
+    fontSize: 26,
     fontWeight: '800',
     fontVariant: ['tabular-nums'],
     letterSpacing: -0.8,
-    lineHeight: 34,
+    lineHeight: 30,
+    textAlign: 'center',
+    marginVertical: 2,
   },
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 8,
+    marginTop: 4,
   },
   iconBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
   },

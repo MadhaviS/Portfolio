@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { useTheme } from '../../../core/theme/ThemeProvider';
+import { fontBody } from '../../../core/theme/fonts';
 import { pomodoroRepository } from '../data/pomodoroRepository';
 import {
   buildDayLog,
@@ -266,7 +267,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 8,
   },
-  title: { fontSize: 20, fontWeight: '700' },
+  title: { fontFamily: fontBody, fontSize: 20, fontWeight: '700' },
   close: {
     width: 32,
     height: 32,
@@ -274,9 +275,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  closeText: { fontSize: 22, fontWeight: '600', lineHeight: 24 },
+  closeText: { fontFamily: fontBody, fontSize: 22, fontWeight: '600', lineHeight: 24 },
   body: { gap: 12, paddingBottom: 12 },
   sectionLabel: {
+    fontFamily: fontBody,
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 1,
@@ -291,9 +293,14 @@ const styles = StyleSheet.create({
     padding: 10,
     gap: 2,
   },
-  summaryLabel: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase' },
-  summaryValue: { fontSize: 18, fontWeight: '800', marginTop: 2 },
-  summaryHint: { fontSize: 11 },
+  summaryLabel: {
+    fontFamily: fontBody,
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  summaryValue: { fontFamily: fontBody, fontSize: 18, fontWeight: '800', marginTop: 2 },
+  summaryHint: { fontFamily: fontBody, fontSize: 11 },
   chartCard: {
     borderWidth: 1,
     borderRadius: 14,
@@ -312,27 +319,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
-  barValue: { fontSize: 9, fontWeight: '700', minHeight: 12 },
+  barValue: { fontFamily: fontBody, fontSize: 9, fontWeight: '700', minHeight: 12 },
   bar: {
     width: '70%',
     maxWidth: 28,
     borderRadius: 6,
   },
-  barLabel: { fontSize: 10, fontWeight: '700' },
-  weekMeta: { fontSize: 12, fontWeight: '600', textAlign: 'center' },
+  barLabel: { fontFamily: fontBody, fontSize: 10, fontWeight: '700' },
+  weekMeta: { fontFamily: fontBody, fontSize: 12, fontWeight: '600', textAlign: 'center' },
   calendarBtn: {
     borderWidth: 1,
     borderRadius: 12,
     padding: 14,
     gap: 2,
   },
-  calendarBtnText: { fontSize: 15, fontWeight: '700' },
-  calendarBtnMeta: { fontSize: 12, fontWeight: '500' },
+  calendarBtnText: { fontFamily: fontBody, fontSize: 15, fontWeight: '700' },
+  calendarBtnMeta: { fontFamily: fontBody, fontSize: 12, fontWeight: '500' },
   okBtn: {
     marginTop: 4,
     borderRadius: 10,
     paddingVertical: 13,
     alignItems: 'center',
   },
-  okText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  okText: { fontFamily: fontBody, color: '#fff', fontWeight: '700', fontSize: 15 },
 });

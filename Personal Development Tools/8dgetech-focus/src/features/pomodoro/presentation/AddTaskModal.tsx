@@ -10,6 +10,8 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import Feather from '@expo/vector-icons/Feather';
+import { useTheme } from '../../../core/theme/ThemeProvider';
+import { fontBody } from '../../../core/theme/fonts';
 import type { PomodoroTask } from '../domain/types';
 
 type Props = {
@@ -27,6 +29,8 @@ export function AddTaskModal({
   onSave,
   onDelete,
 }: Props) {
+  const { theme } = useTheme();
+  const c = theme.colors;
   const { width } = useWindowDimensions();
   const cardWidth = Math.min(480, width - 32);
   const [title, setTitle] = useState('');
@@ -74,45 +78,56 @@ export function AddTaskModal({
     >
       <View style={styles.backdrop}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        <View style={[styles.card, { width: cardWidth }]}>
+        <View
+          style={[
+            styles.card,
+            { width: cardWidth, backgroundColor: c.surface, borderColor: c.border },
+          ]}
+        >
           <View style={styles.body}>
             <TextInput
               value={title}
               onChangeText={setTitle}
               placeholder="What are you working on?"
-              placeholderTextColor="#C4C4C4"
+              placeholderTextColor={c.onSurfaceMuted}
               autoFocus
               multiline
-              style={styles.titleInput}
+              style={[styles.titleInput, { color: c.onSurface }]}
               returnKeyType="done"
               blurOnSubmit
               onSubmitEditing={save}
             />
 
-            <Text style={styles.estLabel}>Est Pomodoros</Text>
+            <Text style={[styles.estLabel, { color: c.onSurface }]}>Est Pomodoros</Text>
             <View style={styles.estRow}>
-              <View style={styles.estBox}>
-                <Text style={styles.estValue}>{estimate}</Text>
+              <View style={[styles.estBox, { backgroundColor: c.backgroundAlt }]}>
+                <Text style={[styles.estValue, { color: c.onSurface }]}>{estimate}</Text>
               </View>
               <Pressable
                 onPress={() => bump(1)}
                 accessibilityLabel="Increase estimate"
                 style={({ pressed }) => [
                   styles.stepBtn,
-                  pressed && styles.stepBtnPressed,
+                  {
+                    backgroundColor: pressed ? c.backgroundAlt : c.surface,
+                    borderColor: c.border,
+                  },
                 ]}
               >
-                <Text style={styles.stepGlyph}>▲</Text>
+                <Text style={[styles.stepGlyph, { color: c.onSurfaceMuted }]}>▲</Text>
               </Pressable>
               <Pressable
                 onPress={() => bump(-1)}
                 accessibilityLabel="Decrease estimate"
                 style={({ pressed }) => [
                   styles.stepBtn,
-                  pressed && styles.stepBtnPressed,
+                  {
+                    backgroundColor: pressed ? c.backgroundAlt : c.surface,
+                    borderColor: c.border,
+                  },
                 ]}
               >
-                <Text style={styles.stepGlyph}>▼</Text>
+                <Text style={[styles.stepGlyph, { color: c.onSurfaceMuted }]}>▼</Text>
               </Pressable>
             </View>
 
@@ -121,9 +136,15 @@ export function AddTaskModal({
                 value={note}
                 onChangeText={setNote}
                 placeholder="Some notes..."
-                placeholderTextColor="#B0B0B0"
+                placeholderTextColor={c.onSurfaceMuted}
                 multiline
-                style={styles.noteInput}
+                style={[
+                  styles.noteInput,
+                  {
+                    backgroundColor: `${c.primary}14`,
+                    color: c.onSurface,
+                  },
+                ]}
               />
             ) : null}
 
@@ -133,46 +154,55 @@ export function AddTaskModal({
                 style={styles.linkHit}
                 accessibilityRole="button"
               >
-                <Text style={styles.linkText}>+ Add Note</Text>
+                <Text style={[styles.linkText, { color: c.primary }]}>+ Add Note</Text>
               </Pressable>
               <Pressable
                 style={styles.linkHit}
                 disabled
                 accessibilityRole="button"
               >
-                <Text style={[styles.linkText, styles.linkMuted]}>
+                <Text style={[styles.linkText, { color: c.onSurfaceMuted }]}>
                   + Add Project
                 </Text>
-                <Feather name="lock" size={13} color="#B0B0B0" />
+                <Feather name="lock" size={13} color={c.onSurfaceMuted} />
               </Pressable>
             </View>
           </View>
 
-          <View style={styles.footer}>
+          <View
+            style={[
+              styles.footer,
+              {
+                backgroundColor: c.backgroundAlt,
+                borderTopColor: c.border,
+              },
+            ]}
+          >
             {editing && onDelete ? (
               <Pressable
                 onPress={onDelete}
                 hitSlop={8}
                 style={styles.deleteHit}
               >
-                <Text style={styles.deleteText}>Delete</Text>
+                <Text style={[styles.deleteText, { color: c.danger }]}>Delete</Text>
               </Pressable>
             ) : (
               <View style={styles.footerSpacer} />
             )}
             <Pressable onPress={onClose} hitSlop={8} style={styles.cancelHit}>
-              <Text style={styles.cancelText}>Cancel</Text>
+              <Text style={[styles.cancelText, { color: c.onSurfaceMuted }]}>Cancel</Text>
             </Pressable>
             <Pressable
               onPress={save}
               disabled={!title.trim()}
               style={({ pressed }) => [
                 styles.saveBtn,
+                { backgroundColor: c.primary },
                 !title.trim() && styles.saveBtnDisabled,
                 pressed && title.trim() ? { opacity: 0.88 } : null,
               ]}
             >
-              <Text style={styles.saveText}>Save</Text>
+              <Text style={[styles.saveText, { color: c.primaryText }]}>Save</Text>
             </Pressable>
           </View>
         </View>
@@ -180,11 +210,6 @@ export function AddTaskModal({
     </Modal>
   );
 }
-
-const fontBody = Platform.select({
-  web: 'Outfit, system-ui, sans-serif',
-  default: 'System',
-});
 
 const styles = StyleSheet.create({
   backdrop: {
@@ -195,8 +220,8 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   card: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
     ...Platform.select({
       web: {
@@ -220,7 +245,6 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontStyle: 'italic',
     fontWeight: '500',
-    color: '#333',
     paddingHorizontal: 20,
     paddingTop: 4,
     paddingBottom: 20,
@@ -231,7 +255,6 @@ const styles = StyleSheet.create({
     fontFamily: fontBody,
     fontSize: 15,
     fontWeight: '700',
-    color: '#555555',
     paddingHorizontal: 20,
     marginBottom: 10,
   },
@@ -246,7 +269,6 @@ const styles = StyleSheet.create({
     width: 72,
     height: 40,
     borderRadius: 6,
-    backgroundColor: '#EFEFEF',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -254,36 +276,17 @@ const styles = StyleSheet.create({
     fontFamily: fontBody,
     fontSize: 18,
     fontWeight: '600',
-    color: '#555',
   },
   stepBtn: {
     width: 36,
     height: 36,
     borderRadius: 6,
-    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#E6E6E6',
-    ...Platform.select({
-      web: {
-        boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
-      },
-      default: {
-        elevation: 2,
-        shadowColor: '#000',
-        shadowOpacity: 0.12,
-        shadowRadius: 2,
-        shadowOffset: { width: 0, height: 1 },
-      },
-    }),
-  },
-  stepBtnPressed: {
-    backgroundColor: '#F5F5F5',
   },
   stepGlyph: {
     fontSize: 11,
-    color: '#666',
     lineHeight: 14,
   },
   noteInput: {
@@ -291,8 +294,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     minHeight: 70,
     borderRadius: 6,
-    backgroundColor: '#F4F0D9',
-    color: '#5C5428',
     fontFamily: fontBody,
     fontSize: 14,
     paddingHorizontal: 12,
@@ -318,11 +319,7 @@ const styles = StyleSheet.create({
     fontFamily: fontBody,
     fontSize: 14,
     fontWeight: '500',
-    color: '#7A7A7A',
     textDecorationLine: 'underline',
-  },
-  linkMuted: {
-    color: '#A8A8A8',
   },
   footer: {
     marginTop: 10,
@@ -330,11 +327,9 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#EFEFEF',
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#E2E2E2',
   },
   footerSpacer: {
     flex: 1,
@@ -348,7 +343,6 @@ const styles = StyleSheet.create({
     fontFamily: fontBody,
     fontSize: 14,
     fontWeight: '600',
-    color: '#397097',
   },
   cancelHit: {
     paddingHorizontal: 16,
@@ -358,10 +352,8 @@ const styles = StyleSheet.create({
     fontFamily: fontBody,
     fontSize: 14,
     fontWeight: '500',
-    color: '#A0A0A0',
   },
   saveBtn: {
-    backgroundColor: '#3D3D3D',
     borderRadius: 6,
     paddingHorizontal: 22,
     paddingVertical: 10,
@@ -373,7 +365,6 @@ const styles = StyleSheet.create({
   },
   saveText: {
     fontFamily: fontBody,
-    color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '700',
   },

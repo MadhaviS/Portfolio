@@ -10,15 +10,15 @@ type IconProps = {
 
 /** App icons — Feather only (keeps a single icon font in the APK). */
 
-export function IconTarget({ color = '#FB7160', size = 28, style }: IconProps) {
+export function IconTarget({ color = '#397097', size = 28, style }: IconProps) {
   return <Feather name="crosshair" size={size} color={color} style={style as TextStyle} />;
 }
 
-export function IconChecklist({ color = '#FB7160', size = 28, style }: IconProps) {
+export function IconChecklist({ color = '#397097', size = 28, style }: IconProps) {
   return <Feather name="check-square" size={size} color={color} style={style as TextStyle} />;
 }
 
-export function IconChart({ color = '#FB7160', size = 28, style }: IconProps) {
+export function IconChart({ color = '#397097', size = 28, style }: IconProps) {
   return <Feather name="trending-up" size={size} color={color} style={style as TextStyle} />;
 }
 
@@ -26,7 +26,7 @@ export function IconReport({ color = '#1A1C20', size = 18, style }: IconProps) {
   return <Feather name="bar-chart-2" size={size} color={color} style={style as TextStyle} />;
 }
 
-export function IconPerson({ color = '#FB7160', size = 28, style }: IconProps) {
+export function IconPerson({ color = '#397097', size = 28, style }: IconProps) {
   return <Feather name="user" size={size} color={color} style={style as TextStyle} />;
 }
 

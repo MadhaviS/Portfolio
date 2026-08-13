@@ -17,10 +17,9 @@ export function SoftDoodles({
   accent,
   playful = true,
 }: SoftDoodlesProps) {
-  const { theme, resolved } = useTheme();
+  const { theme } = useTheme();
   const { width, height } = useWindowDimensions();
-  const ink =
-    accent ?? (resolved === 'light' ? '#A89888' : theme.colors.doodle);
+  const ink = accent ?? theme.colors.doodle;
   const h = Math.max(height, 900);
   const w = Math.max(width, 320);
 

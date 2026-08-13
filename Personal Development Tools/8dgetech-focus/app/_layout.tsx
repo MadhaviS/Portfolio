@@ -16,6 +16,9 @@ import {
   TimerBubble,
   useShowTimerBubble,
 } from '../src/features/pomodoro';
+import { ensureWebFonts, fontBody } from '../src/core/theme/fonts';
+
+ensureWebFonts();
 
 function BubbleOverlay() {
   const visible = useShowTimerBubble();
@@ -113,7 +116,10 @@ function RootNavigator() {
             screenOptions={{
               headerStyle: { backgroundColor: 'transparent' },
               headerTintColor: theme.colors.onSurface,
-              headerTitleStyle: { color: theme.colors.onSurface },
+              headerTitleStyle: {
+                color: theme.colors.onSurface,
+                fontFamily: fontBody,
+              },
               headerShadowVisible: false,
               contentStyle: { backgroundColor: 'transparent' },
             }}

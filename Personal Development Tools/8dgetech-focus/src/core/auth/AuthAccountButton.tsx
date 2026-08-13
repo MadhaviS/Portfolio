@@ -13,9 +13,9 @@ import { useRouter } from 'expo-router';
 import Feather from '@expo/vector-icons/Feather';
 import { useAuth } from './AuthProvider';
 import { useTheme } from '../theme/ThemeProvider';
+import { fontBody } from '../theme/fonts';
 import { pomodoroRepository } from '../../features/pomodoro/data/pomodoroRepository';
 import { IconLogout, IconReport } from '../theme/LineIcons';
-import { PHASE_THEME } from '../../features/pomodoro/domain/types';
 
 type AuthAccountButtonProps = {
   /** Icon / label ink color */
@@ -172,7 +172,7 @@ export function AuthAccountButton({
               ]}
               accessibilityLabel="Sign out"
             >
-              <IconLogout color={PHASE_THEME.focus.bg} size={18} />
+              <IconLogout color={c.primary} size={18} />
               <Text style={[styles.menuItemLabel, { color: c.onSurface }]}>
                 Sign out
               </Text>
@@ -230,6 +230,7 @@ const styles = StyleSheet.create({
     }),
   },
   menuTitle: {
+    fontFamily: fontBody,
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 0.4,
@@ -246,6 +247,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   menuItemLabel: {
+    fontFamily: fontBody,
     fontSize: 16,
     fontWeight: '700',
   },
@@ -257,6 +259,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cancelLabel: {
+    fontFamily: fontBody,
     fontSize: 14,
     fontWeight: '600',
   },

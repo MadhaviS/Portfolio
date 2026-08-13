@@ -85,7 +85,7 @@ export type PomodoroStats = {
   totalSessions: number;
 };
 
-/** Pomofocus-like mode colors */
+/** Timer ritual only — focus / short break / long break washes. App chrome uses theme.primary. */
 export const PHASE_THEME: Record<
   PomodoroPhase,
   {

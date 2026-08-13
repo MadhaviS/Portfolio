@@ -16,6 +16,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useTheme } from '../../../core/theme/ThemeProvider';
+import { fontBody } from '../../../core/theme/fonts';
 import {
   formatMinutesShort,
   formatDayHeading,
@@ -29,18 +30,9 @@ import {
 import { usePomodoroCalendar } from './usePomodoroCalendar';
 
 const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-const NAVY = '#1B2A4A';
-const NAVY_MUTED = '#7A8BB0';
-const NAVY_DIM = '#4A5C80';
-const PINK = '#F06292';
 const FOCUS = PHASE_THEME.focus.bg;
 const BREAK = PHASE_THEME.shortBreak.bg;
 const LONG = PHASE_THEME.longBreak.bg;
-
-const fontBody = Platform.select({
-  web: 'Outfit, system-ui, sans-serif',
-  default: 'System',
-});
 
 function sessionStartLabel(iso: string): string {
   return new Date(iso).toLocaleTimeString([], {
@@ -168,9 +160,16 @@ export function CalendarModal({ open, onClose }: CalendarModalProps) {
           </View>
 
           <View style={styles.body}>
-            <View style={styles.calendarPanel}>
+            <View style={[styles.calendarPanel, { backgroundColor: c.primary }]}>
               <View style={styles.calTopBar}>
-                <Text style={[styles.yearText, { fontFamily: fontBody }]}>{year}</Text>
+                <Text
+                  style={[
+                    styles.yearText,
+                    { color: 'rgba(255,255,255,0.65)', fontFamily: fontBody },
+                  ]}
+                >
+                  {year}
+                </Text>
                 <Pressable onPress={goToday} hitSlop={8}>
                   <Text style={[styles.todayTop, { fontFamily: fontBody }]}>Today</Text>
                 </Pressable>
@@ -191,7 +190,13 @@ export function CalendarModal({ open, onClose }: CalendarModalProps) {
               <Animated.View style={calendarBodyStyle}>
                 <View style={styles.weekdayRow}>
                   {WEEKDAYS.map((d) => (
-                    <Text key={d} style={[styles.weekday, { fontFamily: fontBody }]}>
+                    <Text
+                      key={d}
+                      style={[
+                        styles.weekday,
+                        { color: 'rgba(255,255,255,0.55)', fontFamily: fontBody },
+                      ]}
+                    >
                       {d}
                     </Text>
                   ))}
@@ -217,7 +222,7 @@ export function CalendarModal({ open, onClose }: CalendarModalProps) {
                 style={styles.handleHit}
                 accessibilityLabel={expanded ? 'Collapse calendar' : 'Expand calendar'}
               >
-                <View style={styles.handle} />
+                <View style={[styles.handle, { backgroundColor: 'rgba(255,255,255,0.35)' }]} />
               </Pressable>
             </View>
 
@@ -269,6 +274,9 @@ function DayCell({
   selected: boolean;
   onSelect: (key: string) => void;
 }) {
+  const { theme } = useTheme();
+  const highlight = theme.colors.accent;
+
   if (!cell.dateKey || cell.dayOfMonth == null) {
     return <View style={styles.cell} />;
   }
@@ -282,13 +290,18 @@ function DayCell({
       accessibilityRole="button"
       accessibilityState={{ selected }}
     >
-      <View style={[styles.dayBubble, selected && styles.dayBubbleSelected]}>
+      <View
+        style={[
+          styles.dayBubble,
+          selected && { backgroundColor: '#FFFFFF' },
+        ]}
+      >
         <Text
           style={[
             styles.dayNum,
             { fontFamily: fontBody },
-            selected && styles.dayNumSelected,
-            cell.isToday && !selected && styles.dayNumToday,
+            selected && { color: theme.colors.primary, fontWeight: '800' },
+            cell.isToday && !selected && { color: highlight, fontWeight: '800' },
           ]}
         >
           {cell.dayOfMonth}
@@ -333,7 +346,7 @@ function DayAgenda({ log }: { log: DayLog }) {
     for (const t of log.tasksCreated) {
       items.push({
         id: `created-${t.id}`,
-        tone: PINK,
+        tone: c.accent,
         time: sessionStartLabel(t.createdAt),
         duration: '—',
         title: t.title,
@@ -345,7 +358,7 @@ function DayAgenda({ log }: { log: DayLog }) {
       if (log.tasksCreated.some((t) => t.id === tw.task.id)) continue;
       items.push({
         id: `worked-${tw.task.id}`,
-        tone: '#F0A05A',
+        tone: c.primary,
         time: 'Focus',
         duration: formatMinutesShort(tw.focusMinutes),
         title: tw.task.title,
@@ -354,7 +367,7 @@ function DayAgenda({ log }: { log: DayLog }) {
     }
 
     return items;
-  }, [log]);
+  }, [log, c.accent, c.primary]);
 
   if (rows.length === 0) {
     return (
@@ -482,7 +495,6 @@ const styles = StyleSheet.create({
     gap: 0,
   },
   calendarPanel: {
-    backgroundColor: NAVY,
     paddingTop: 12,
     paddingHorizontal: 12,
     paddingBottom: 4,
@@ -495,7 +507,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   yearText: {
-    color: NAVY_MUTED,
     fontSize: 14,
     fontWeight: '600',
   },
@@ -536,7 +547,6 @@ const styles = StyleSheet.create({
   weekday: {
     flex: 1,
     textAlign: 'center',
-    color: NAVY_MUTED,
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 0.4,
@@ -558,21 +568,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dayBubbleSelected: {
-    backgroundColor: PINK,
-  },
   dayNum: {
     color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '600',
-  },
-  dayNumSelected: {
-    color: '#FFFFFF',
-    fontWeight: '800',
-  },
-  dayNumToday: {
-    color: PINK,
-    fontWeight: '800',
   },
   eventDot: {
     width: 4,
@@ -594,7 +593,6 @@ const styles = StyleSheet.create({
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: NAVY_DIM,
   },
   agenda: {
     maxHeight: 260,

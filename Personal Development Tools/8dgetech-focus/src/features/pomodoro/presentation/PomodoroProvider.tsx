@@ -9,7 +9,7 @@ import React, {
   type ReactNode,
 } from 'react';
 import { Platform } from 'react-native';
-import { PHASE_THEME, formatTimer } from '../domain/types';
+import { PHASE_THEME, formatTimer, type PomodoroPhase } from '../domain/types';
 import { lockScreenTimer } from '../data/lockScreenTimer';
 import { usePomodoroTimer } from './usePomodoroTimer';
 import {
@@ -38,12 +38,16 @@ export function PomodoroProvider({ children }: { children: ReactNode }) {
   const [minimized, setMinimized] = useState(false);
   const [pipOpen, setPipOpen] = useState(false);
   const [overlayDismissed, setOverlayDismissed] = useState(false);
+  /** Phase tab captured at minimize — reopen must land on this tab. */
+  const minimizedPhaseRef = useRef<PomodoroPhase>(timer.phase);
   const startRef = useRef(timer.start);
   const pauseRef = useRef(timer.pause);
   const runningRef = useRef(timer.running);
+  const restorePhaseRef = useRef(timer.restorePhase);
   startRef.current = timer.start;
   pauseRef.current = timer.pause;
   runningRef.current = timer.running;
+  restorePhaseRef.current = timer.restorePhase;
 
   const pipHandlers = useMemo(
     () => ({
@@ -54,7 +58,7 @@ export function PomodoroProvider({ children }: { children: ReactNode }) {
         setOverlayDismissed(false);
       },
       onOpenApp: () => {
-        // Navigate via bridge first, then clear floating UI
+        restorePhaseRef.current(minimizedPhaseRef.current);
         emitOpenFromPip();
         closeTimerPip();
         setPipOpen(false);
@@ -85,12 +89,14 @@ export function PomodoroProvider({ children }: { children: ReactNode }) {
         return;
       }
       if (action === 'open') {
+        restorePhaseRef.current(minimizedPhaseRef.current);
         emitOpenFromPip();
       }
     });
   }, []);
 
   const expand = useCallback(() => {
+    restorePhaseRef.current(minimizedPhaseRef.current);
     closeTimerPip();
     setPipOpen(false);
     setMinimized(false);
@@ -105,6 +111,7 @@ export function PomodoroProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const minimize = useCallback(() => {
+    minimizedPhaseRef.current = timer.phase;
     setOverlayDismissed(false);
     setMinimized(true);
     void openTimerPip(
@@ -112,21 +119,40 @@ export function PomodoroProvider({ children }: { children: ReactNode }) {
         remaining: timer.remaining,
         phase: timer.phase,
         running: timer.running,
+        taskTitle: timer.activeTask?.title ?? null,
       },
       pipHandlers,
     ).then((ok) => {
       setPipOpen(ok);
-      // If system PiP isn't available, in-app bubble stays (minimized=true)
     });
-  }, [pipHandlers, timer.phase, timer.remaining, timer.running]);
+  }, [
+    pipHandlers,
+    timer.activeTask?.title,
+    timer.phase,
+    timer.remaining,
+    timer.running,
+  ]);
+
+  // If phase advances while minimized (auto-break), keep the reopen tab in sync.
+  useEffect(() => {
+    if (minimized || pipOpen) {
+      minimizedPhaseRef.current = timer.phase;
+    }
+  }, [minimized, pipOpen, timer.phase]);
 
   useEffect(() => {
     updateTimerPip({
       remaining: timer.remaining,
       phase: timer.phase,
       running: timer.running,
+      taskTitle: timer.activeTask?.title ?? null,
     });
-  }, [timer.remaining, timer.phase, timer.running]);
+  }, [
+    timer.activeTask?.title,
+    timer.remaining,
+    timer.phase,
+    timer.running,
+  ]);
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return;

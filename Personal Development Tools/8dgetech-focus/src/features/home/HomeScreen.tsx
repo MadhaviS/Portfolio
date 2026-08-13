@@ -18,6 +18,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useTheme } from '../../core/theme/ThemeProvider';
+import { fontBody, fontDisplay } from '../../core/theme/fonts';
 import { AuthAccountButton } from '../../core/auth/AuthAccountButton';
 import {
   IconChart,
@@ -55,22 +56,7 @@ const FEATURES = [
   },
 ] as const;
 
-function useWebFonts() {
-  useEffect(() => {
-    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
-    const id = '8dgetech-fonts';
-    if (document.getElementById(id)) return;
-    const link = document.createElement('link');
-    link.id = id;
-    link.rel = 'stylesheet';
-    link.href =
-      'https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Outfit:wght@400;500;600;700&display=swap';
-    document.head.appendChild(link);
-  }, []);
-}
-
 export function HomeScreen() {
-  useWebFonts();
   const { theme, toggleLightDark, resolved } = useTheme();
   const router = useRouter();
   const { height, width } = useWindowDimensions();
@@ -78,7 +64,7 @@ export function HomeScreen() {
   const isLight = resolved === 'light';
   const ink = isLight ? '#1A1C20' : c.onSurface;
   const inkSoft = isLight ? '#6B6661' : c.onSurfaceMuted;
-  const coral = c.primary;
+  const brand = c.primary;
   const narrow = width < 700;
   const short = height < 720;
   const tiny = height < 600 || width < 360;
@@ -156,7 +142,7 @@ export function HomeScreen() {
               style={({ pressed }) => [
                 styles.ghostBtn,
                 {
-                  borderColor: isLight ? '#D9D2C8' : c.border,
+                  borderColor: c.border,
                   backgroundColor: isLight ? '#FFFFFF' : c.surface,
                   opacity: pressed ? 0.88 : 1,
                   paddingVertical: tiny ? 8 : 11,
@@ -170,7 +156,7 @@ export function HomeScreen() {
               style={({ pressed }) => [
                 styles.iconBtn,
                 {
-                  borderColor: isLight ? '#D9D2C8' : c.border,
+                  borderColor: c.border,
                   backgroundColor: isLight ? '#FFFFFF' : c.surface,
                   opacity: pressed ? 0.88 : 1,
                   width: tiny ? 38 : 44,
@@ -224,7 +210,7 @@ export function HomeScreen() {
               { marginTop: short ? 10 : 16 },
               Platform.OS === 'web'
                 ? ({
-                    boxShadow: `0 18px 40px ${coral}40`,
+                    boxShadow: `0 18px 40px ${brand}40`,
                   } as object)
                 : null,
             ]}
@@ -234,9 +220,9 @@ export function HomeScreen() {
               style={({ pressed }) => [
                 styles.ctaCard,
                 {
-                  backgroundColor: coral,
+                  backgroundColor: brand,
                   transform: [{ scale: pressed ? 0.99 : 1 }],
-                  shadowColor: coral,
+                  shadowColor: brand,
                   paddingVertical: ctaPadV,
                   paddingHorizontal: tiny ? 16 : 24,
                 },
@@ -283,7 +269,7 @@ export function HomeScreen() {
           style={[
             styles.featuresWrap,
             {
-              borderTopColor: isLight ? '#E8E1D8' : c.border,
+              borderTopColor: c.border,
               paddingTop: short ? 14 : 22,
             },
           ]}
@@ -298,11 +284,11 @@ export function HomeScreen() {
                     styles.featureCol,
                     narrow && styles.featureColGrid,
                     !narrow && i < FEATURES.length - 1 && styles.featureDivider,
-                    { borderColor: isLight ? '#E8E1D8' : c.border },
+                    { borderColor: c.border },
                   ]}
                 >
                   <FeatureIcon
-                    color={coral}
+                    color={brand}
                     size={featureIconSize}
                     style={styles.featureIcon}
                   />
@@ -341,16 +327,6 @@ export function HomeScreen() {
     </ImageBackground>
   );
 }
-
-const fontDisplay = Platform.select({
-  web: 'Fraunces, Georgia, serif',
-  default: 'serif',
-});
-
-const fontBody = Platform.select({
-  web: 'Outfit, system-ui, sans-serif',
-  default: 'System',
-});
 
 const styles = StyleSheet.create({
   page: {

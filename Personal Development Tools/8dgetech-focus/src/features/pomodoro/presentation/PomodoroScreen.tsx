@@ -35,6 +35,7 @@ import { AddTaskModal } from './AddTaskModal';
 import { RitualRing } from './RitualRing';
 import { PhaseIconGlyph } from './PhaseIcon';
 import { useTheme } from '../../../core/theme/ThemeProvider';
+import { fontBody } from '../../../core/theme/fonts';
 import { AuthAccountButton } from '../../../core/auth/AuthAccountButton';
 import { IconGear, IconMoon, IconSun } from '../../../core/theme/LineIcons';
 import { previewSound } from '../data/pomodoroAudio';
@@ -150,7 +151,6 @@ export function PomodoroScreen() {
               <Pressable
                 onPress={() => {
                   minimize();
-                  router.navigate('/');
                 }}
                 accessibilityLabel="Pop timer out"
                 style={({ pressed }) => [
@@ -506,12 +506,13 @@ export function PomodoroScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: pageBg }]}>
-      <Image
-        source={DOODLE_FRAME}
-        style={[styles.doodleFrame, { opacity: isLight ? 0.78 : 0.62 }]}
-        resizeMode="cover"
-        pointerEvents="none"
-      />
+      <View pointerEvents="none" style={styles.doodleHost}>
+        <Image
+          source={DOODLE_FRAME}
+          style={[styles.doodleFrame, { opacity: isLight ? 0.78 : 0.62 }]}
+          resizeMode="cover"
+        />
+      </View>
       <View style={styles.stageLayer}>{chrome}</View>
     </View>
   );
@@ -1415,11 +1416,13 @@ function ToggleRow({
 
 const styles = StyleSheet.create({
   root: { flex: 1, width: '100%', overflow: 'hidden' },
-  doodleFrame: {
+  doodleHost: {
     ...StyleSheet.absoluteFillObject,
+    zIndex: 0,
+  },
+  doodleFrame: {
     width: '100%',
     height: '100%',
-    zIndex: 0,
   },
   stageLayer: {
     flex: 1,
@@ -1448,6 +1451,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   brand: {
+    fontFamily: fontBody,
     fontSize: 24,
     fontWeight: '700',
     letterSpacing: -0.4,
@@ -1477,6 +1481,7 @@ const styles = StyleSheet.create({
     opacity: 1,
   },
   phaseTabText: {
+    fontFamily: fontBody,
     fontSize: 12,
     letterSpacing: 0.2,
   },
@@ -1499,12 +1504,14 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   timerText: {
+    fontFamily: fontBody,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
     letterSpacing: -2,
     textAlign: 'center',
   },
   ritualPhase: {
+    fontFamily: fontBody,
     marginTop: 2,
     fontSize: 12,
     fontWeight: '700',

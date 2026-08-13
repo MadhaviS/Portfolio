@@ -13,20 +13,9 @@ import {
 } from 'react-native';
 import { Redirect, useRouter } from 'expo-router';
 import { useTheme } from '../../core/theme/ThemeProvider';
+import { fontBody, fontDisplay } from '../../core/theme/fonts';
 import { useAuth } from '../../core/auth/AuthProvider';
-import { PHASE_THEME } from '../pomodoro/domain/types';
 import { pomodoroRepository } from '../pomodoro/data/pomodoroRepository';
-
-const fontDisplay = Platform.select({
-  web: 'Fraunces, Georgia, serif',
-  default: 'serif',
-});
-const fontBody = Platform.select({
-  web: 'Outfit, system-ui, sans-serif',
-  default: 'System',
-});
-
-const ACCENT = PHASE_THEME.focus.bg;
 
 type Mode = 'signin' | 'signup' | 'forgot' | 'reset';
 
@@ -258,7 +247,7 @@ export function SignInScreen() {
           ]}
         >
           <View style={styles.cardHeader}>
-            <Text style={[styles.brand, { color: ACCENT, fontFamily: fontDisplay }]}>
+            <Text style={[styles.brand, { color: c.primary, fontFamily: fontDisplay }]}>
               8dgeTech
             </Text>
             {mode !== 'reset' ? (
@@ -301,8 +290,8 @@ export function SignInScreen() {
                   style={[
                     styles.tab,
                     {
-                      borderColor: mode === 'signin' ? ACCENT : c.border,
-                      backgroundColor: mode === 'signin' ? ACCENT : 'transparent',
+                      borderColor: mode === 'signin' ? c.primary : c.border,
+                      backgroundColor: mode === 'signin' ? c.primary : 'transparent',
                     },
                   ]}
                 >
@@ -323,8 +312,8 @@ export function SignInScreen() {
                   style={[
                     styles.tab,
                     {
-                      borderColor: mode === 'signup' ? ACCENT : c.border,
-                      backgroundColor: mode === 'signup' ? ACCENT : 'transparent',
+                      borderColor: mode === 'signup' ? c.primary : c.border,
+                      backgroundColor: mode === 'signup' ? c.primary : 'transparent',
                     },
                   ]}
                 >
@@ -397,7 +386,7 @@ export function SignInScreen() {
                 style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1, alignSelf: 'flex-start' })}
               >
                 <Text
-                  style={[styles.link, { color: ACCENT, fontFamily: fontBody }]}
+                  style={[styles.link, { color: c.primary, fontFamily: fontBody }]}
                 >
                   Forgot password?
                 </Text>
@@ -411,7 +400,7 @@ export function SignInScreen() {
             ) : null}
 
             {error ? (
-              <Text style={[styles.error, { color: ACCENT, fontFamily: fontBody }]}>
+              <Text style={[styles.error, { color: c.danger, fontFamily: fontBody }]}>
                 {error}
               </Text>
             ) : null}
@@ -422,7 +411,7 @@ export function SignInScreen() {
               style={({ pressed }) => [
                 styles.primaryBtn,
                 {
-                  backgroundColor: ACCENT,
+                  backgroundColor: c.primary,
                   opacity: busy ? 0.7 : pressed ? 0.9 : 1,
                 },
               ]}

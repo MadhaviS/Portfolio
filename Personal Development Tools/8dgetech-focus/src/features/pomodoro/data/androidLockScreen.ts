@@ -140,22 +140,23 @@ function chronoOptions(
   return {
     channelId: CHANNEL_ID,
     channelName: 'Focus timer',
-    channelDescription: 'Ongoing Pomodoro countdown (system chronometer)',
+    channelDescription: 'Ongoing Pomodoro countdown',
     notificationId: NOTIFICATION_ID,
     title,
     text,
     smallIcon: 'ic_stat_focus',
     color: accent,
-    priority: 'default',
+    priority: 'low',
     ongoing: true,
     autoCancel: false,
     openAppOnAction: true,
-    closeOnAction: true,
+    closeOnAction: false,
     repostOnDismiss: true,
     foregroundServiceBehavior: 'immediate',
-    systemStyle: true,
-    requestPromotedOngoing: true,
-    category: 'alarm',
+    // Compact shade row — not MediaStyle / Spotify-like lock controls.
+    systemStyle: false,
+    requestPromotedOngoing: false,
+    category: 'progress',
     shortCriticalText: chrono.chipText,
     usesChronometer: chrono.countdown && chrono.endsAt != null,
     chronometerCountDown: chrono.countdown && chrono.endsAt != null,
@@ -205,19 +206,17 @@ async function hideService() {
 async function renderRunning() {
   const theme = PHASE_THEME[currentPhase];
   const endsAt = endsAtMs ?? Date.now() + remainingSeconds() * 1000;
+  const left = formatTimer(remainingSeconds());
   await present(
     chronoOptions(
+      left,
       theme.label,
-      'Pomodoro running',
       theme.bg,
-      [
-        { id: 'pause', title: 'Pause' },
-        { id: 'open', title: 'Open', payload: '/pomodoro' },
-      ],
+      [{ id: 'open', title: 'Open', payload: '/pomodoro' }],
       {
         endsAt,
         countdown: true,
-        chipText: formatTimer(remainingSeconds()),
+        chipText: left,
       },
     ),
   );
@@ -225,24 +224,25 @@ async function renderRunning() {
 
 async function renderPaused() {
   const theme = PHASE_THEME[currentPhase];
+  const left = formatTimer(pausedRemaining);
   await present(
     chronoOptions(
-      theme.label,
-      `Paused · ${formatTimer(pausedRemaining)}`,
+      left,
+      `${theme.label} · Paused`,
       theme.bg,
-      [
-        { id: 'resume', title: 'Resume' },
-        { id: 'open', title: 'Open', payload: '/pomodoro' },
-      ],
+      [{ id: 'open', title: 'Open', payload: '/pomodoro' }],
       {
         countdown: false,
-        chipText: formatTimer(pausedRemaining),
+        chipText: left,
       },
     ),
   );
 }
 
-/** Home-screen chip like Clock stopwatch (overlay). Hide while app is open. */
+/**
+ * Round floating chip (unlocked home / lock when OEM allows overlay).
+ * Shown whenever the session is active and the app is not in the foreground.
+ */
 function syncChip() {
   const mod = getChip();
   if (!mod) return;

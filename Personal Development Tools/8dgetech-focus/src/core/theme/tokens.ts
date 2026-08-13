@@ -1,49 +1,50 @@
 export type ThemeMode = 'light' | 'dark' | 'system';
 
 /**
- * Shared palette: Option C — plum focus, sage short, clay long.
+ * App brand: steel blue. Phase washes (focus / short / long) live only on the
+ * Pomodoro ritual screen — everywhere else uses this single palette.
  */
 export const lightTheme = {
   mode: 'light' as const,
   colors: {
-    background: '#FDFBF7',
-    backgroundAlt: '#F3EDE5',
+    background: '#F7F9FB',
+    backgroundAlt: '#E8EEF3',
     surface: '#FFFFFF',
     text: '#1A1C20',
-    textMuted: '#6B6661',
+    textMuted: '#5C6670',
     onSurface: '#1A1C20',
-    onSurfaceMuted: '#6B6661',
+    onSurfaceMuted: '#5C6670',
     primary: '#397097',
     primaryText: '#FFFFFF',
     accent: '#4A84A8',
-    border: '#E8E1D8',
-    doodle: '#A89888',
-    success: '#4A7C74',
-    danger: '#397097',
+    border: '#D5DEE6',
+    doodle: '#8A9AAB',
+    success: '#3D7A62',
+    danger: '#C45C5C',
     timerRing: '#397097',
-    timerTrack: '#EDE6DC',
+    timerTrack: '#DDE5EC',
   },
 };
 
 export const darkTheme = {
   mode: 'dark' as const,
   colors: {
-    background: '#141018',
-    backgroundAlt: '#1E1822',
-    surface: '#26202C',
-    text: '#FFF8F2',
-    textMuted: '#D4C8BE',
-    onSurface: '#FFF8F2',
-    onSurfaceMuted: '#D4C8BE',
+    background: '#121820',
+    backgroundAlt: '#1A2430',
+    surface: '#222E3C',
+    text: '#F2F6FA',
+    textMuted: '#A8B4C0',
+    onSurface: '#F2F6FA',
+    onSurfaceMuted: '#A8B4C0',
     primary: '#4A84A8',
     primaryText: '#FFFFFF',
     accent: '#6BA0C4',
-    border: '#3A323E',
-    doodle: '#5A4E58',
+    border: '#2E3C4C',
+    doodle: '#4A5C6C',
     success: '#5F968C',
-    danger: '#4A84A8',
+    danger: '#D67070',
     timerRing: '#4A84A8',
-    timerTrack: '#2E2734',
+    timerTrack: '#1E2834',
   },
 };
 

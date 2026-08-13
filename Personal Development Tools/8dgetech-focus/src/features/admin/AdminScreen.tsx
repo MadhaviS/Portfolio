@@ -15,6 +15,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Feather from '@expo/vector-icons/Feather';
 import { useAuth } from '../../core/auth/AuthProvider';
 import { useTheme } from '../../core/theme/ThemeProvider';
+import { fontBody } from '../../core/theme/fonts';
+import { IconMoon, IconSun } from '../../core/theme/LineIcons';
 import { PHASE_THEME, type PomodoroPhase } from '../pomodoro/domain/types';
 import {
   fetchAdminProfiles,
@@ -26,16 +28,6 @@ import {
   type AdminStats,
   type AdminTaskRow,
 } from './adminApi';
-
-const ACCENT = PHASE_THEME.focus.bg;
-const fontDisplay = Platform.select({
-  web: 'Fraunces, Georgia, serif',
-  default: 'serif',
-});
-const fontBody = Platform.select({
-  web: 'Outfit, system-ui, sans-serif',
-  default: 'System',
-});
 
 type Tab = 'overview' | 'users' | 'sessions' | 'tasks';
 
@@ -66,11 +58,11 @@ function initials(name: string | null | undefined, email: string | null | undefi
   return raw.slice(0, 2).toUpperCase();
 }
 
-function phaseColor(phase: string) {
+function phaseColor(phase: string, fallback: string) {
   if (phase === 'focus' || phase === 'shortBreak' || phase === 'longBreak') {
     return PHASE_THEME[phase as PomodoroPhase].bg;
   }
-  return ACCENT;
+  return fallback;
 }
 
 function phaseLabel(phase: string) {
@@ -81,8 +73,9 @@ function phaseLabel(phase: string) {
 }
 
 export function AdminScreen() {
-  const { theme } = useTheme();
+  const { theme, resolved, toggleLightDark } = useTheme();
   const c = theme.colors;
+  const isLight = resolved === 'light';
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const router = useRouter();
@@ -145,7 +138,7 @@ export function AdminScreen() {
   if (!ready || (isAdmin && loading)) {
     return (
       <View style={[styles.center, { backgroundColor: c.background, paddingTop: insets.top }]}>
-        <ActivityIndicator color={ACCENT} />
+        <ActivityIndicator color={c.primary} />
         <Text style={[styles.loadingLabel, { color: c.onSurfaceMuted, fontFamily: fontBody }]}>
           Loading workspace…
         </Text>
@@ -174,31 +167,51 @@ export function AdminScreen() {
           </Pressable>
 
           <View style={styles.headerCopy}>
-            <Text style={[styles.kicker, { color: ACCENT, fontFamily: fontBody }]}>
+            <Text style={[styles.kicker, { color: c.primary, fontFamily: fontBody }]}>
               8dgeTech Focus
             </Text>
-            <Text style={[styles.title, { color: c.onSurface, fontFamily: fontDisplay }]}>
+            <Text style={[styles.title, { color: c.onSurface, fontFamily: fontBody }]}>
               Admin
             </Text>
           </View>
 
-          <Pressable
-            onPress={() => {
-              setRefreshing(true);
-              void load();
-            }}
-            hitSlop={12}
-            accessibilityLabel="Refresh"
-            style={({ pressed }) => [
-              styles.iconBtn,
-              {
-                backgroundColor: c.backgroundAlt,
-                opacity: pressed ? 0.75 : 1,
-              },
-            ]}
-          >
-            <Feather name="refresh-cw" size={16} color={c.onSurface} />
-          </Pressable>
+          <View style={styles.headerActions}>
+            <Pressable
+              onPress={toggleLightDark}
+              hitSlop={12}
+              accessibilityLabel="Toggle color theme"
+              style={({ pressed }) => [
+                styles.iconBtn,
+                {
+                  backgroundColor: c.backgroundAlt,
+                  opacity: pressed ? 0.75 : 1,
+                },
+              ]}
+            >
+              {isLight ? (
+                <IconSun color={c.onSurface} size={16} />
+              ) : (
+                <IconMoon color={c.onSurface} size={16} />
+              )}
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                setRefreshing(true);
+                void load();
+              }}
+              hitSlop={12}
+              accessibilityLabel="Refresh"
+              style={({ pressed }) => [
+                styles.iconBtn,
+                {
+                  backgroundColor: c.backgroundAlt,
+                  opacity: pressed ? 0.75 : 1,
+                },
+              ]}
+            >
+              <Feather name="refresh-cw" size={16} color={c.onSurface} />
+            </Pressable>
+          </View>
         </View>
 
         <Text style={[styles.signedIn, { color: c.onSurfaceMuted, fontFamily: fontBody }]}>
@@ -230,7 +243,7 @@ export function AdminScreen() {
                 <Feather
                   name={t.icon}
                   size={14}
-                  color={on ? ACCENT : c.onSurfaceMuted}
+                  color={on ? c.primary : c.onSurfaceMuted}
                 />
                 <Text
                   style={[
@@ -269,9 +282,9 @@ export function AdminScreen() {
         ) : null}
 
         {error ? (
-          <View style={[styles.notice, { backgroundColor: 'rgba(186,73,73,0.12)', borderColor: ACCENT }]}>
-            <Feather name="alert-circle" size={16} color={ACCENT} />
-            <Text style={[styles.noticeText, { color: ACCENT, fontFamily: fontBody }]}>{error}</Text>
+          <View style={[styles.notice, { backgroundColor: `${c.danger}18`, borderColor: c.danger }]}>
+            <Feather name="alert-circle" size={16} color={c.danger} />
+            <Text style={[styles.noticeText, { color: c.danger, fontFamily: fontBody }]}>{error}</Text>
           </View>
         ) : null}
 
@@ -286,7 +299,7 @@ export function AdminScreen() {
                 setRefreshing(true);
                 void load();
               }}
-              tintColor={ACCENT}
+              tintColor={c.primary}
             />
           }
         >
@@ -331,7 +344,7 @@ export function AdminScreen() {
                   trailing={
                     <Badge
                       label={u.role}
-                      bg={u.role === 'admin' ? ACCENT : c.backgroundAlt}
+                      bg={u.role === 'admin' ? c.primary : c.backgroundAlt}
                       fg={u.role === 'admin' ? '#FFF' : c.onSurfaceMuted}
                     />
                   }
@@ -352,7 +365,7 @@ export function AdminScreen() {
                     <View style={styles.trailStack}>
                       <Badge
                         label={`${Math.round(s.plannedSeconds / 60)} min`}
-                        bg={phaseColor(s.phase)}
+                        bg={phaseColor(s.phase, c.primary)}
                         fg="#FFF"
                       />
                       {s.completed ? (
@@ -414,6 +427,7 @@ function Metric({
     onSurface: string;
     onSurfaceMuted: string;
     backgroundAlt: string;
+    primary: string;
   };
   accent?: boolean;
 }) {
@@ -430,12 +444,18 @@ function Metric({
       <View
         style={[
           styles.metricIcon,
-          { backgroundColor: accent ? 'rgba(186,73,73,0.14)' : colors.backgroundAlt },
+          {
+            backgroundColor: accent ? `${colors.primary}22` : colors.backgroundAlt,
+          },
         ]}
       >
-        <Feather name={icon} size={15} color={accent ? ACCENT : colors.onSurfaceMuted} />
+        <Feather
+          name={icon}
+          size={15}
+          color={accent ? colors.primary : colors.onSurfaceMuted}
+        />
       </View>
-      <Text style={[styles.metricValue, { color: colors.onSurface, fontFamily: fontDisplay }]}>
+      <Text style={[styles.metricValue, { color: colors.onSurface, fontFamily: fontBody }]}>
         {value}
       </Text>
       <Text style={[styles.metricLabel, { color: colors.onSurfaceMuted, fontFamily: fontBody }]}>
@@ -571,6 +591,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerCopy: { flex: 1 },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   kicker: {
     fontSize: 11,
     fontWeight: '700',
